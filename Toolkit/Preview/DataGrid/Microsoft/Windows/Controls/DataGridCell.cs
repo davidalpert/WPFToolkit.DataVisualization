@@ -659,7 +659,7 @@ namespace Microsoft.Windows.Controls
                     e.Handled = true;
                 }
             }
-            else if (!focusWithin || (e.Handled && !IsSelected))
+            else if (!focusWithin || !IsSelected)
             {
                 if (!focusWithin)
                 {
