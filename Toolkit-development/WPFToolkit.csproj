@@ -1,0 +1,191 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="3.5" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProductVersion>9.0.30718</ProductVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{9606A078-7135-4CE7-879E-39FCF527F1A3}</ProjectGuid>
+    <OutputType>library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>Microsoft.Windows.Controls</RootNamespace>
+    <AssemblyName>WPFToolkit</AssemblyName>
+    <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <ProjectTypeGuids>{60dc8134-eba5-43b8-bcc9-bb4bc16c2548};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
+    <WarningLevel>4</WarningLevel>
+    <TargetFrameworkSubset>Client</TargetFrameworkSubset>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="UIAutomationProvider">
+      <RequiredTargetFramework>3.0</RequiredTargetFramework>
+    </Reference>
+    <Reference Include="UIAutomationTypes">
+      <RequiredTargetFramework>3.0</RequiredTargetFramework>
+    </Reference>
+    <Reference Include="WindowsBase" />
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+  </ItemGroup>
+  <ItemGroup>
+    <Page Include="DataGrid\Themes\Aero.NormalColor.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="DataGrid\Themes\Classic.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="DataGrid\Themes\Generic.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="DataGrid\Themes\Luna.HomeStead.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="DataGrid\Themes\Luna.Metallic.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="DataGrid\Themes\Luna.NormalColor.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="DataGrid\Themes\Royale.NormalColor.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Themes\Aero.NormalColor.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Themes\Classic.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Themes\Generic.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Themes\Luna.HomeStead.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Themes\Luna.Metallic.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Themes\Luna.NormalColor.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Themes\Royale.NormalColor.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="DataGrid\AssemblyAttrs.cs" />
+    <Compile Include="DataGrid\Properties\AssemblyInfo.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="DataGrid\Resources\SR.cs" />
+    <Compile Include="DataGrid\Resources\SRID.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\ClipboardHelper.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\ColumnHeaderCollection.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\ComboBoxDataFieldTarget.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\ContainerTracking.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGrid.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridAutoGeneratingColumnEventArgs.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridBeginningEditEventArgs.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridBoundColumn.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridCell.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridCellClipboardEventArgs.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridCellInfo.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridCellsPanel.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridCellsPresenter.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridCheckBoxColumn.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridClipboardCellContent.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridClipboardCopyMode.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridColumn.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridColumnCollection.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridColumnDropSeparator.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridColumnEventArgs.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridColumnFloatingHeader.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridColumnHeader.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridColumnHeadersPresenter.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridColumnReorderingEventArgs.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridComboBoxColumn.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridDetailsPresenter.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridEditingUnit.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridEndingEditEventArgs.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridGridLinesVisibility.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridHeaderBorder.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridHeadersVisibility.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridHeadersVisibilityToVisibilityConverter.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridHelper.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridHyperlinkColumn.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridLength.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridLengthConverter.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridLengthUnitType.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridPreparingCellForEditEventArgs.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridRow.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridRowClipboardEventArgs.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridRowHeader.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridRowsPresenter.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridSelectionMode.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridSelectionUnit.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridSortingEventArgs.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridSortingEventHandler.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridTemplateColumn.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DataGridTextColumn.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\DoubleUtil.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\InitializingNewItemEventArgs.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\InitializingNewItemEventHandler.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\IProvideDataGridColumn.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\MultipleCopiesCollection.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\NotificationTarget.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\SelectedCellsChangedEventArgs.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\SelectedCellsChangedEventHandler.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\SelectedCellsCollection.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\SelectiveScrollingGrid.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\SelectiveScrollingOrientation.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\VirtualizedCellInfoCollection.cs" />
+    <Compile Include="DataGrid\Microsoft\Windows\Controls\WeakHashtable.cs" />
+    <AppDesigner Include="DataGrid\Properties\" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="DataGrid\Resources\ExceptionStringTable.txt">
+      <Type>Resx</Type>
+      <WithCulture>false</WithCulture>
+      <ManifestResourceName>ExceptionStringTable</ManifestResourceName>
+    </EmbeddedResource>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+       Other similar extension points exist, see Microsoft.Common.targets.
+  <Target Name="BeforeBuild">
+  </Target>
+  <Target Name="AfterBuild">
+  </Target>
+  -->
+</Project>
