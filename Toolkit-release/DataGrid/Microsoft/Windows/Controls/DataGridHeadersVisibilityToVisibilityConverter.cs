@@ -5,9 +5,9 @@
 //---------------------------------------------------------------------------
 
 using System;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
-using System.Globalization;
 
 namespace Microsoft.Windows.Controls
 {
@@ -34,7 +34,7 @@ namespace Microsoft.Windows.Controls
                 var valueAsDataGridHeadersVisibility = (DataGridHeadersVisibility)value;
                 var parameterAsDataGridHeadersVisibility = (DataGridHeadersVisibility)parameter;
 
-                switch(valueAsDataGridHeadersVisibility)
+                switch (valueAsDataGridHeadersVisibility)
                 {
                     case DataGridHeadersVisibility.All:
                         visible = true;

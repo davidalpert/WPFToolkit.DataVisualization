@@ -5,11 +5,11 @@
 //---------------------------------------------------------------------------
 
 using System;
-using System.ComponentModel;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
@@ -84,6 +84,7 @@ namespace Microsoft.Windows.Controls
             {
                 _previous._next = _next;
             }
+
             if (_next != null)
             {
                 _next._previous = _previous;
@@ -106,7 +107,7 @@ namespace Microsoft.Windows.Controls
         ///     Asserts that the container represented by this tracker is in the list represented by the given root.
         /// </summary>
         [Conditional("DEBUG")]
-        internal void debug_AssertIsInList(ContainerTracking<T> root)
+        internal void Debug_AssertIsInList(ContainerTracking<T> root)
         {
 #if DEBUG
             Debug.Assert(IsInList(root), "This container should be in the tracking list.");
@@ -117,7 +118,7 @@ namespace Microsoft.Windows.Controls
         ///     Asserts that the container represented by this tracker is not in the list represented by the given root.
         /// </summary>
         [Conditional("DEBUG")]
-        internal void debug_AssertNotInList(ContainerTracking<T> root)
+        internal void Debug_AssertNotInList(ContainerTracking<T> root)
         {
 #if DEBUG
             Debug.Assert(!IsInList(root), "This container shouldn't be in our tracking list");

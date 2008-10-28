@@ -96,12 +96,11 @@ namespace Microsoft.Windows.Controls
             if (memDelta < 0 && hashDelta >= 0)
             {
                 // Perform a scavenge through our keys, looking
-                // for dead references.
-                //
+                // for dead references.                
                 ArrayList cleanupList = null;
                 foreach (object o in Keys)
                 {
-                    WeakReference wr = o as WeakReference;
+                    EqualityWeakReference wr = o as EqualityWeakReference;
                     if (wr != null && !wr.IsAlive)
                     {
                         if (cleanupList == null)
@@ -128,16 +127,17 @@ namespace Microsoft.Windows.Controls
 
         private class WeakKeyComparer : IEqualityComparer
         {
-            bool IEqualityComparer.Equals(Object x, Object y)
+            bool IEqualityComparer.Equals(object x, object y)
             {
                 if (x == null)
                 {
                     return y == null;
                 }
+
                 if (y != null && x.GetHashCode() == y.GetHashCode())
                 {
-                    WeakReference wX = x as WeakReference;
-                    WeakReference wY = y as WeakReference;
+                    EqualityWeakReference wX = x as EqualityWeakReference;
+                    EqualityWeakReference wY = y as EqualityWeakReference;
 
                     if (wX != null)
                     {
@@ -145,6 +145,7 @@ namespace Microsoft.Windows.Controls
                         {
                             return false;
                         }
+
                         x = wX.Target;
                     }
 
@@ -154,6 +155,7 @@ namespace Microsoft.Windows.Controls
                         {
                             return false;
                         }
+
                         y = wY.Target;
                     }
 
@@ -163,27 +165,39 @@ namespace Microsoft.Windows.Controls
                 return false;
             }
 
-            int IEqualityComparer.GetHashCode(Object obj)
+            int IEqualityComparer.GetHashCode(object obj)
             {
                 return obj.GetHashCode();
             }
         }
 
         /// <devdoc>
-        ///     A subclass of WeakReference that overrides GetHashCode and
+        ///     A wrapper of WeakReference that overrides GetHashCode and
         ///     Equals so that the weak reference returns the same equality
         ///     semantics as the object it wraps.  This will always return
         ///     the object's hash code and will return True for a Equals
         ///     comparison of the object it is wrapping.  If the object
         ///     it is wrapping has finalized, Equals always returns false.
         /// </devdoc>
-        private sealed class EqualityWeakReference : WeakReference
+        private sealed class EqualityWeakReference
         {
             private int _hashCode;
+            private WeakReference _weakRef;
+
             internal EqualityWeakReference(object o)
-                : base(o)
             {
+                _weakRef = new WeakReference(o);
                 _hashCode = o.GetHashCode();
+            }
+
+            public bool IsAlive
+            {
+                get { return _weakRef.IsAlive; }
+            }
+
+            public object Target
+            {
+                get { return _weakRef.Target; }
             }
 
             public override bool Equals(object o)
@@ -213,5 +227,3 @@ namespace Microsoft.Windows.Controls
         }
     }
 }
-
-

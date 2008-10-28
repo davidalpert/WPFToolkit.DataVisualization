@@ -9,6 +9,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 
 namespace Microsoft.Windows.Controls
 {
@@ -22,10 +23,12 @@ namespace Microsoft.Windows.Controls
 
         static DataGridTemplateColumn()
         {
-            CanUserSortProperty.OverrideMetadata(typeof(DataGridTemplateColumn), 
-                                new FrameworkPropertyMetadata(null, new CoerceValueCallback(OnCoerceTemplateColumnCanUserSort)));
-            SortMemberPathProperty.OverrideMetadata(typeof(DataGridTemplateColumn),
-                                new FrameworkPropertyMetadata(new PropertyChangedCallback(OnTemplateColumnSortMemberPathChanged)));
+            CanUserSortProperty.OverrideMetadata(
+                typeof(DataGridTemplateColumn), 
+                new FrameworkPropertyMetadata(null, new CoerceValueCallback(OnCoerceTemplateColumnCanUserSort)));
+            SortMemberPathProperty.OverrideMetadata(
+                typeof(DataGridTemplateColumn),
+                new FrameworkPropertyMetadata(new PropertyChangedCallback(OnTemplateColumnSortMemberPathChanged)));
         }
 
         public DataGridTemplateColumn()
@@ -70,10 +73,11 @@ namespace Microsoft.Windows.Controls
         /// <summary>
         ///     The DependencyProperty representing the CellTemplate property.
         /// </summary>
-        public static readonly DependencyProperty CellTemplateProperty = DependencyProperty.Register("CellTemplate", 
-                                                                                                     typeof(DataTemplate), 
-                                                                                                     typeof(DataGridTemplateColumn),
-                                                                                                     new FrameworkPropertyMetadata(null, new PropertyChangedCallback(DataGridColumn.NotifyPropertyChangeForRefreshContent)));
+        public static readonly DependencyProperty CellTemplateProperty = DependencyProperty.Register(
+                                                                            "CellTemplate", 
+                                                                            typeof(DataTemplate), 
+                                                                            typeof(DataGridTemplateColumn),
+                                                                            new FrameworkPropertyMetadata(null, new PropertyChangedCallback(DataGridColumn.NotifyPropertyChangeForRefreshContent)));
 
         /// <summary>
         ///     A template selector describing how to display data for a cell in this column.
@@ -87,10 +91,11 @@ namespace Microsoft.Windows.Controls
         /// <summary>
         ///     The DependencyProperty representing the CellTemplateSelector property.
         /// </summary>
-        public static readonly DependencyProperty CellTemplateSelectorProperty = DependencyProperty.Register("CellTemplateSelector", 
-                                                                                                             typeof(DataTemplateSelector), 
-                                                                                                             typeof(DataGridTemplateColumn),
-                                                                                                             new FrameworkPropertyMetadata(null, new PropertyChangedCallback(DataGridColumn.NotifyPropertyChangeForRefreshContent)));
+        public static readonly DependencyProperty CellTemplateSelectorProperty = DependencyProperty.Register(
+                                                                                    "CellTemplateSelector", 
+                                                                                    typeof(DataTemplateSelector), 
+                                                                                    typeof(DataGridTemplateColumn),
+                                                                                    new FrameworkPropertyMetadata(null, new PropertyChangedCallback(DataGridColumn.NotifyPropertyChangeForRefreshContent)));
 
         /// <summary>
         ///     A template describing how to display data for a cell 
@@ -105,10 +110,11 @@ namespace Microsoft.Windows.Controls
         /// <summary>
         ///     The DependencyProperty representing the CellEditingTemplate
         /// </summary>
-        public static readonly DependencyProperty CellEditingTemplateProperty = DependencyProperty.Register("CellEditingTemplate", 
-                                                                                                            typeof(DataTemplate), 
-                                                                                                            typeof(DataGridTemplateColumn),
-                                                                                                            new FrameworkPropertyMetadata(null, new PropertyChangedCallback(DataGridColumn.NotifyPropertyChangeForRefreshContent)));
+        public static readonly DependencyProperty CellEditingTemplateProperty = DependencyProperty.Register(
+                                                                                    "CellEditingTemplate", 
+                                                                                    typeof(DataTemplate), 
+                                                                                    typeof(DataGridTemplateColumn),
+                                                                                    new FrameworkPropertyMetadata(null, new PropertyChangedCallback(DataGridColumn.NotifyPropertyChangeForRefreshContent)));
 
         /// <summary>
         ///     A template selector describing how to display data for a cell 
@@ -123,19 +129,18 @@ namespace Microsoft.Windows.Controls
         /// <summary>
         ///     The DependencyProperty representing the CellEditingTemplateSelector
         /// </summary>
-        public static readonly DependencyProperty CellEditingTemplateSelectorProperty = DependencyProperty.Register("CellEditingTemplateSelector", 
-                                                                                                                    typeof(DataTemplateSelector), 
-                                                                                                                    typeof(DataGridTemplateColumn), 
-                                                                                                                    new FrameworkPropertyMetadata(null, new PropertyChangedCallback(DataGridColumn.NotifyPropertyChangeForRefreshContent)));
+        public static readonly DependencyProperty CellEditingTemplateSelectorProperty = DependencyProperty.Register(
+                                                                                            "CellEditingTemplateSelector", 
+                                                                                            typeof(DataTemplateSelector), 
+                                                                                            typeof(DataGridTemplateColumn), 
+                                                                                            new FrameworkPropertyMetadata(null, new PropertyChangedCallback(DataGridColumn.NotifyPropertyChangeForRefreshContent)));
 
         /// <summary>
         ///     Returns either the specified CellTemplate or CellEditingTemplate.
         ///     CellTemplate is returned if CellEditingTemplate is null.
         /// </summary>
         /// <param name="isEditing">Whether the editing template is requested.</param>
-        /// <param name="dataItem">The data item for the cell.</param>
-        /// <param name="cell">The cell container that will receive the tree.</param>
-        private DataTemplate ChooseCellTemplate(bool isEditing, object dataItem, DataGridCell cell)
+        private DataTemplate ChooseCellTemplate(bool isEditing)
         {
             DataTemplate template = null;
 
@@ -147,15 +152,6 @@ namespace Microsoft.Windows.Controls
             if (template == null)
             {
                 template = CellTemplate;
-            }
-
-            if (template == null)
-            {
-                DataTemplateSelector selector = ChooseCellTemplateSelector(isEditing);
-                if (selector != null)
-                {
-                    template = selector.SelectTemplate(dataItem, cell);
-                }
             }
 
             return template;
@@ -195,10 +191,15 @@ namespace Microsoft.Windows.Controls
         /// <param name="cell">The cell container that will receive the tree.</param>
         private FrameworkElement LoadTemplateContent(bool isEditing, object dataItem, DataGridCell cell)
         {
-            DataTemplate template = ChooseCellTemplate(isEditing, dataItem, cell);
-            if (template != null)
+            DataTemplate template = ChooseCellTemplate(isEditing);
+            DataTemplateSelector templateSelector = ChooseCellTemplateSelector(isEditing);
+            if (template != null || templateSelector != null)
             {
-                return template.LoadContent() as FrameworkElement;
+                ContentPresenter contentPresenter = new ContentPresenter();
+                BindingOperations.SetBinding(contentPresenter, ContentPresenter.ContentProperty, new Binding());
+                contentPresenter.ContentTemplate = template;
+                contentPresenter.ContentTemplateSelector = templateSelector;
+                return contentPresenter;
             }
 
             return null;
@@ -238,16 +239,17 @@ namespace Microsoft.Windows.Controls
                 bool isCellEditing = cell.IsEditing;
 
                 if ((!isCellEditing &&
-                        ((string.Compare(propertyName, "CellTemplate") == 0) ||
-                        (string.Compare(propertyName, "CellTemplateSelector") == 0))) ||
+                        ((string.Compare(propertyName, "CellTemplate", StringComparison.Ordinal) == 0) ||
+                        (string.Compare(propertyName, "CellTemplateSelector", StringComparison.Ordinal) == 0))) ||
                     (isCellEditing &&
-                        ((string.Compare(propertyName, "CellEditingTemplate") == 0) ||
-                        (string.Compare(propertyName, "CellEditingTemplateSelector") == 0))))
+                        ((string.Compare(propertyName, "CellEditingTemplate", StringComparison.Ordinal) == 0) ||
+                        (string.Compare(propertyName, "CellEditingTemplateSelector", StringComparison.Ordinal) == 0))))
                 {
                     cell.BuildVisualTree();
                     return;
                 }
             }
+
             base.RefreshCellContent(element, propertyName);
         }
 

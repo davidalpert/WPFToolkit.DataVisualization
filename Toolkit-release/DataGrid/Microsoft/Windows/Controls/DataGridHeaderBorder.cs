@@ -131,10 +131,40 @@ namespace Microsoft.Windows.Controls
         {
             get
             {
-                return ((Background != null) || (BorderBrush != null));
+                return (Background != null) || (BorderBrush != null);
             }
         }
 
+        /// <summary>
+        ///     Property that indicates the brush to use when drawing seperators between headers.
+        /// </summary>
+        public Brush SeparatorBrush
+        {
+            get { return (Brush)GetValue(SeparatorBrushProperty); }
+            set { SetValue(SeparatorBrushProperty, value); }
+        }
+
+        /// <summary>
+        ///     DependencyProperty for SeparatorBrush.
+        /// </summary>
+        public static readonly DependencyProperty SeparatorBrushProperty =
+            DependencyProperty.Register("SeparatorBrush", typeof(Brush), typeof(DataGridHeaderBorder), new FrameworkPropertyMetadata(null));
+
+        /// <summary>
+        ///     Property that indicates the Visibility for the header seperators.
+        /// </summary>
+        public Visibility SeparatorVisibility
+        {
+            get { return (Visibility)GetValue(SeparatorVisibilityProperty); }
+            set { SetValue(SeparatorVisibilityProperty, value); }
+        }
+
+        /// <summary>
+        ///     DependencyProperty for SeperatorBrush.
+        /// </summary>
+        public static readonly DependencyProperty SeparatorVisibilityProperty =
+            DependencyProperty.Register("SeparatorVisibility", typeof(Visibility), typeof(DataGridHeaderBorder), new FrameworkPropertyMetadata(Visibility.Visible));
+        
         #endregion
 
         #region Theme Information
@@ -217,6 +247,7 @@ namespace Microsoft.Windows.Controls
                 {
                     childWidth = Math.Max(0.0, childWidth - padding.Left - padding.Right);
                 }
+
                 if (!Double.IsInfinity(childHeight))
                 {
                     childHeight = Math.Max(0.0, childHeight - padding.Top - padding.Bottom);
@@ -230,7 +261,6 @@ namespace Microsoft.Windows.Controls
             }
 
             return new Size();
-
         }
 
         /// <summary>
@@ -404,6 +434,7 @@ namespace Microsoft.Windows.Controls
 
                     CacheFreezable(bevel, (int)AeroFreezables.NormalBevel);
                 }
+
                 dc.DrawRectangle(bevel, null, new Rect(0.0, 0.0, size.Width, size.Height));
             }
 
@@ -421,6 +452,7 @@ namespace Microsoft.Windows.Controls
             {
                 backgroundType = AeroFreezables.SortedBackground;
             }
+
             LinearGradientBrush background = (LinearGradientBrush)GetCachedFreezable((int)backgroundType);
             if (background == null)
             {
@@ -458,11 +490,13 @@ namespace Microsoft.Windows.Controls
                         background.GradientStops.Add(new GradientStop(Color.FromArgb(0xFF, 0xD8, 0xEC, 0xF6), 1.0));
                         break;
                 }
+
                 background.Freeze();
 
                 CacheFreezable(background, (int)backgroundType);
             }
-            dc.DrawRectangle(background, null, new Rect(hasBevel ? 2.0 : 0.0, 0.0, Max0(size.Width - (hasBevel ? 4.0 : 0.0)), size.Height));
+
+            dc.DrawRectangle(background, null, new Rect(0.0, 0.0, size.Width, size.Height));
 
             if (size.Width >= 2.0)
             {
@@ -480,51 +514,65 @@ namespace Microsoft.Windows.Controls
                 {
                     sideType = AeroFreezables.SortedSides;
                 }
-                Brush sideBrush = (Brush)GetCachedFreezable((int)sideType);
-                if (sideBrush == null)
+
+                if (SeparatorVisibility == Visibility.Visible)
                 {
-                    LinearGradientBrush lgBrush = null;
-                    if (sideType != AeroFreezables.SortedSides)
+                    Brush sideBrush;
+                    if (SeparatorBrush != null)
                     {
-                        lgBrush = new LinearGradientBrush();
-                        lgBrush.StartPoint = new Point();
-                        lgBrush.EndPoint = new Point(0.0, 1.0);
-                        sideBrush = lgBrush;
+                        sideBrush = SeparatorBrush;
                     }
-                    switch (sideType)
+                    else
                     {
-                        case AeroFreezables.NormalSides:
-                            lgBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0xFF, 0xF2, 0xF2, 0xF2), 0.0));
-                            lgBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0xFF, 0xEF, 0xEF, 0xEF), 0.4));
-                            lgBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0xFF, 0xE7, 0xE8, 0xEA), 0.4));
-                            lgBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0xFF, 0xDE, 0xDF, 0xE1), 1.0));
-                            break;
+                        sideBrush = (Brush)GetCachedFreezable((int)sideType);
+                        if (sideBrush == null)
+                        {
+                            LinearGradientBrush lgBrush = null;
+                            if (sideType != AeroFreezables.SortedSides)
+                            {
+                                lgBrush = new LinearGradientBrush();
+                                lgBrush.StartPoint = new Point();
+                                lgBrush.EndPoint = new Point(0.0, 1.0);
+                                sideBrush = lgBrush;
+                            }
 
-                        case AeroFreezables.PressedSides:
-                            lgBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0xFF, 0x7A, 0x9E, 0xB1), 0.0));
-                            lgBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0xFF, 0x7A, 0x9E, 0xB1), 0.4));
-                            lgBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0xFF, 0x50, 0x91, 0xAF), 0.4));
-                            lgBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0xFF, 0x4D, 0x8D, 0xAD), 1.0));
-                            break;
+                            switch (sideType)
+                            {
+                                case AeroFreezables.NormalSides:
+                                    lgBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0xFF, 0xF2, 0xF2, 0xF2), 0.0));
+                                    lgBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0xFF, 0xEF, 0xEF, 0xEF), 0.4));
+                                    lgBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0xFF, 0xE7, 0xE8, 0xEA), 0.4));
+                                    lgBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0xFF, 0xDE, 0xDF, 0xE1), 1.0));
+                                    break;
 
-                        case AeroFreezables.HoveredSides:
-                            lgBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0xFF, 0x88, 0xCB, 0xEB), 0.0));
-                            lgBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0xFF, 0x88, 0xCB, 0xEB), 0.4));
-                            lgBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0xFF, 0x69, 0xBB, 0xE3), 0.4));
-                            lgBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0xFF, 0x69, 0xBB, 0xE3), 1.0));
-                            break;
+                                case AeroFreezables.PressedSides:
+                                    lgBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0xFF, 0x7A, 0x9E, 0xB1), 0.0));
+                                    lgBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0xFF, 0x7A, 0x9E, 0xB1), 0.4));
+                                    lgBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0xFF, 0x50, 0x91, 0xAF), 0.4));
+                                    lgBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0xFF, 0x4D, 0x8D, 0xAD), 1.0));
+                                    break;
 
-                        case AeroFreezables.SortedSides:
-                            sideBrush = new SolidColorBrush(Color.FromArgb(0xFF, 0x96, 0xD9, 0xF9));
-                            break;
+                                case AeroFreezables.HoveredSides:
+                                    lgBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0xFF, 0x88, 0xCB, 0xEB), 0.0));
+                                    lgBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0xFF, 0x88, 0xCB, 0xEB), 0.4));
+                                    lgBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0xFF, 0x69, 0xBB, 0xE3), 0.4));
+                                    lgBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0xFF, 0x69, 0xBB, 0xE3), 1.0));
+                                    break;
 
+                                case AeroFreezables.SortedSides:
+                                    sideBrush = new SolidColorBrush(Color.FromArgb(0xFF, 0x96, 0xD9, 0xF9));
+                                    break;
+                            }
+
+                            sideBrush.Freeze();
+
+                            CacheFreezable(sideBrush, (int)sideType);
+                        }
                     }
-                    sideBrush.Freeze();
 
-                    CacheFreezable(sideBrush, (int)sideType);
+                    dc.DrawRectangle(sideBrush, null, new Rect(0.0, 0.0, 1.0, Max0(size.Height - 0.95)));
+                    dc.DrawRectangle(sideBrush, null, new Rect(size.Width - 1.0, 0.0, 1.0, Max0(size.Height - 0.95)));
                 }
-                dc.DrawRectangle(sideBrush, null, new Rect(0.0, 0.0, 1.0, Max0(size.Height - 0.95)));
-                dc.DrawRectangle(sideBrush, null, new Rect(size.Width - 1.0, 0.0, 1.0, Max0(size.Height - 0.95)));
             }
 
             if (isPressed && (size.Width >= 4.0) && (size.Height >= 4.0))
@@ -544,6 +592,7 @@ namespace Microsoft.Windows.Controls
 
                     CacheFreezable(topBrush, (int)AeroFreezables.PressedTop);
                 }
+
                 dc.DrawRectangle(topBrush, null, new Rect(0.0, 0.0, size.Width, 2.0));
 
                 LinearGradientBrush pressedBevel = (LinearGradientBrush)GetCachedFreezable((int)AeroFreezables.PressedBevel);
@@ -560,6 +609,7 @@ namespace Microsoft.Windows.Controls
 
                     CacheFreezable(pressedBevel, (int)AeroFreezables.PressedBevel);
                 }
+
                 dc.DrawRectangle(pressedBevel, null, new Rect(1.0, 0.0, 1.0, size.Height - 0.95));
                 dc.DrawRectangle(pressedBevel, null, new Rect(size.Width - 2.0, 0.0, 1.0, size.Height - 0.95));
             }
@@ -580,6 +630,7 @@ namespace Microsoft.Windows.Controls
                 {
                     bottomType = AeroFreezables.SortedBottom;
                 }
+
                 SolidColorBrush bottomBrush = (SolidColorBrush)GetCachedFreezable((int)bottomType);
                 if (bottomBrush == null)
                 {
@@ -597,10 +648,12 @@ namespace Microsoft.Windows.Controls
                             bottomBrush = new SolidColorBrush(Color.FromArgb(0xFF, 0x96, 0xD9, 0xF9));
                             break;
                     }
+
                     bottomBrush.Freeze();
 
                     CacheFreezable(bottomBrush, (int)bottomType);
                 }
+
                 dc.DrawRectangle(bottomBrush, null, new Rect(0.0, size.Height - 1.0, size.Width, 1.0));
             }
 
@@ -665,6 +718,7 @@ namespace Microsoft.Windows.Controls
                     arrowBorder.Freeze();
                     CacheFreezable(arrowBorder, (int)AeroFreezables.ArrowBorder);
                 }
+
                 dc.DrawGeometry(arrowBorder, null, arrowGeometry);
 
                 LinearGradientBrush arrowFill = (LinearGradientBrush)GetCachedFreezable((int)AeroFreezables.ArrowFill);
@@ -688,6 +742,7 @@ namespace Microsoft.Windows.Controls
                     arrowScale.Freeze();
                     CacheFreezable(arrowScale, (int)AeroFreezables.ArrowFillScale);
                 }
+
                 dc.PushTransform(arrowScale);
 
                 dc.DrawGeometry(arrowFill, null, arrowGeometry);
@@ -818,6 +873,7 @@ namespace Microsoft.Windows.Controls
                 background.Freeze();
                 CacheFreezable(background, (int)backgroundType);
             }
+
             dc.DrawRectangle(background, null, new Rect(0.0, 0.0, size.Width, size.Height));
 
             if (isHovered && !isPressed && (size.Width >= 6.0) && (size.Height >= 4.0))
@@ -904,42 +960,57 @@ namespace Microsoft.Windows.Controls
                     border.Freeze();
                     CacheFreezable(border, (int)LunaFreezables.PressedBorder);
                 }
+
                 dc.DrawRectangle(border, null, new Rect(0.0, 0.0, 1.0, size.Height));
                 dc.DrawRectangle(border, null, new Rect(0.0, Max0(size.Height - 1.0), size.Width, 1.0));
             }
 
             if (!isPressed && !isHovered && (size.Width >= 4.0))
             {
-                // When not pressed or hovered, draw the resize gripper
-                LinearGradientBrush gripper = (LinearGradientBrush)GetCachedFreezable((int)(horizontal ? LunaFreezables.HorizontalGripper : LunaFreezables.VerticalGripper));
-                if (gripper == null)
+                if (SeparatorVisibility == Visibility.Visible)
                 {
-                    gripper = new LinearGradientBrush();
-                    gripper.StartPoint = new Point();
-                    gripper.EndPoint = new Point(1.0, 0.0);
-
-                    Color highlight = Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF);
-                    Color shadow = Color.FromArgb(0xFF, 0xC7, 0xC5, 0xB2);
-
-                    if (horizontal)
+                    Brush sideBrush;
+                    if (SeparatorBrush != null)
                     {
-                        gripper.GradientStops.Add(new GradientStop(highlight, 0.0));
-                        gripper.GradientStops.Add(new GradientStop(highlight, 0.25));
-                        gripper.GradientStops.Add(new GradientStop(shadow, 0.75));
-                        gripper.GradientStops.Add(new GradientStop(shadow, 1.0));
+                        sideBrush = SeparatorBrush;
                     }
                     else
                     {
-                        gripper.GradientStops.Add(new GradientStop(shadow, 0.0));
-                        gripper.GradientStops.Add(new GradientStop(shadow, 0.25));
-                        gripper.GradientStops.Add(new GradientStop(highlight, 0.75));
-                        gripper.GradientStops.Add(new GradientStop(highlight, 1.0));
+                        // When not pressed or hovered, draw the resize gripper
+                        LinearGradientBrush gripper = (LinearGradientBrush)GetCachedFreezable((int)(horizontal ? LunaFreezables.HorizontalGripper : LunaFreezables.VerticalGripper));
+                        if (gripper == null)
+                        {
+                            gripper = new LinearGradientBrush();
+                            gripper.StartPoint = new Point();
+                            gripper.EndPoint = new Point(1.0, 0.0);
+
+                            Color highlight = Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF);
+                            Color shadow = Color.FromArgb(0xFF, 0xC7, 0xC5, 0xB2);
+
+                            if (horizontal)
+                            {
+                                gripper.GradientStops.Add(new GradientStop(highlight, 0.0));
+                                gripper.GradientStops.Add(new GradientStop(highlight, 0.25));
+                                gripper.GradientStops.Add(new GradientStop(shadow, 0.75));
+                                gripper.GradientStops.Add(new GradientStop(shadow, 1.0));
+                            }
+                            else
+                            {
+                                gripper.GradientStops.Add(new GradientStop(shadow, 0.0));
+                                gripper.GradientStops.Add(new GradientStop(shadow, 0.25));
+                                gripper.GradientStops.Add(new GradientStop(highlight, 0.75));
+                                gripper.GradientStops.Add(new GradientStop(highlight, 1.0));
+                            }
+
+                            gripper.Freeze();
+                            CacheFreezable(gripper, (int)(horizontal ? LunaFreezables.HorizontalGripper : LunaFreezables.VerticalGripper));
+                        }
+
+                        sideBrush = gripper;
                     }
 
-                    gripper.Freeze();
-                    CacheFreezable(gripper, (int)(horizontal ? LunaFreezables.HorizontalGripper : LunaFreezables.VerticalGripper));
+                    dc.DrawRectangle(sideBrush, null, new Rect(horizontal ? 0.0 : Max0(size.Width - 2.0), 4.0, 2.0, Max0(size.Height - 8.0)));
                 }
-                dc.DrawRectangle(gripper, null, new Rect(horizontal ? 0.0 : Max0(size.Width - 2.0), 4.0, 2.0, Max0(size.Height - 8.0)));
             }
 
             if (isSorted && (size.Width > 14.0) && (size.Height > 10.0))
@@ -1002,6 +1073,7 @@ namespace Microsoft.Windows.Controls
 
                 dc.Pop(); // Position Transform
             }
+
             if (horizontal)
             {
                 dc.Pop(); // Horizontal Rotate
@@ -1056,11 +1128,49 @@ namespace Microsoft.Windows.Controls
             bool isPressed = isClickable && IsPressed;
             ListSortDirection? sortDirection = SortDirection;
             bool isSorted = sortDirection != null;
-
+            bool horizontal = Orientation == Orientation.Horizontal;
             Brush background = EnsureControlBrush();
             Brush light = SystemColors.ControlLightBrush;
             Brush dark = SystemColors.ControlDarkBrush;
-            Brush darkDark = SystemColors.ControlDarkDarkBrush;
+            bool shouldDrawRight = true;
+            bool shouldDrawBottom = true;
+            bool usingSeparatorBrush = false;
+
+            Brush darkDarkRight = null;
+            if (!horizontal)
+            {
+                if (SeparatorVisibility == Visibility.Visible && SeparatorBrush != null)
+                {
+                    darkDarkRight = SeparatorBrush;
+                    usingSeparatorBrush = true;
+                }
+                else
+                {
+                    shouldDrawRight = false;
+                }
+            }
+            else
+            {
+                darkDarkRight = SystemColors.ControlDarkDarkBrush;
+            }
+
+            Brush darkDarkBottom = null;
+            if (horizontal)
+            {
+                if (SeparatorVisibility == Visibility.Visible && SeparatorBrush != null)
+                {
+                    darkDarkBottom = SeparatorBrush;
+                    usingSeparatorBrush = true;
+                }
+                else
+                {
+                    shouldDrawBottom = false;
+                }
+            }
+            else
+            {
+                darkDarkBottom = SystemColors.ControlDarkDarkBrush;
+            }
 
             EnsureCache((int)ClassicFreezables.NumFreezables);
 
@@ -1081,10 +1191,26 @@ namespace Microsoft.Windows.Controls
                 {
                     dc.DrawRectangle(light, null, new Rect(0.0, 0.0, 1.0, Max0(size.Height - 1.0)));
                     dc.DrawRectangle(light, null, new Rect(0.0, 0.0, Max0(size.Width - 1.0), 1.0));
-                    dc.DrawRectangle(dark, null, new Rect(1.0, Max0(size.Height - 2.0), Max0(size.Width - 2.0), 1.0));
-                    dc.DrawRectangle(dark, null, new Rect(Max0(size.Width - 2.0), 1.0, 1.0, Max0(size.Height - 2.0)));
-                    dc.DrawRectangle(darkDark, null, new Rect(Max0(size.Width - 1.0), 0.0, 1.0, size.Height));
-                    dc.DrawRectangle(darkDark, null, new Rect(0.0, Max0(size.Height - 1.0), size.Width, 1.0));
+                    
+                    if (shouldDrawRight)
+                    {
+                        if (!usingSeparatorBrush)
+                        {
+                            dc.DrawRectangle(dark, null, new Rect(Max0(size.Width - 2.0), 1.0, 1.0, Max0(size.Height - 2.0)));
+                        }
+
+                        dc.DrawRectangle(darkDarkRight, null, new Rect(Max0(size.Width - 1.0), 0.0, 1.0, size.Height));
+                    }
+
+                    if (shouldDrawBottom)
+                    {
+                        if (!usingSeparatorBrush)
+                        {
+                            dc.DrawRectangle(dark, null, new Rect(1.0, Max0(size.Height - 2.0), Max0(size.Width - 2.0), 1.0));
+                        }
+
+                        dc.DrawRectangle(darkDarkBottom, null, new Rect(0.0, Max0(size.Height - 1.0), size.Width, 1.0));
+                    }
                 }
             }
 
@@ -1159,11 +1285,13 @@ namespace Microsoft.Windows.Controls
         /// </summary>
         private static void EnsureCache(int size)
         {
-            if (_freezableCache == null) // Quick check to avoid locking
+            // Quick check to avoid locking
+            if (_freezableCache == null) 
             {
                 lock (_cacheAccess)
                 {
-                    if (_freezableCache == null) // Re-check in case another thread created the cache
+                    // Re-check in case another thread created the cache
+                    if (_freezableCache == null) 
                     {
                         _freezableCache = new List<Freezable>(size);
                         for (int i = 0; i < size; i++)
@@ -1182,7 +1310,8 @@ namespace Microsoft.Windows.Controls
         /// </summary>
         private static void ReleaseCache()
         {
-            if (_freezableCache != null) // Avoid locking if necessary
+            // Avoid locking if necessary
+            if (_freezableCache != null) 
             {
                 lock (_cacheAccess)
                 {

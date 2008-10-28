@@ -9,6 +9,7 @@ using System;
 namespace Microsoft.Windows.Controls
 {
     [Flags]
+
     /// <summary>
     /// Determines whether the row/column headers are shown or not.
     /// </summary>

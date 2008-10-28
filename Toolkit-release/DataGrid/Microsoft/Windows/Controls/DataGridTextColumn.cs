@@ -9,8 +9,9 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
+using System.Windows.Documents;
 using System.Windows.Input;
+using System.Windows.Media;
 
 namespace Microsoft.Windows.Controls
 {
@@ -84,8 +85,10 @@ namespace Microsoft.Windows.Controls
         {
             TextBlock textBlock = new TextBlock();
 
+            SyncProperties(textBlock);
+
             ApplyStyle(/* isEditing = */ false, /* defaultToElementStyle = */ false, textBlock);
-            ApplyDataFieldBinding(textBlock, TextBlock.TextProperty);
+            ApplyBinding(textBlock, TextBlock.TextProperty);
 
             return textBlock;
         }
@@ -97,10 +100,55 @@ namespace Microsoft.Windows.Controls
         {
             TextBox textBox = new TextBox();
 
+            SyncProperties(textBox);
+
             ApplyStyle(/* isEditing = */ true, /* defaultToElementStyle = */ false, textBox);
-            ApplyDataFieldBinding(textBox, TextBox.TextProperty);
+            ApplyBinding(textBox, TextBox.TextProperty);
 
             return textBox;
+        }
+
+        private void SyncProperties(FrameworkElement e)
+        {
+            DataGridHelper.SyncColumnProperty(this, e, TextElement.FontFamilyProperty, FontFamilyProperty);
+            DataGridHelper.SyncColumnProperty(this, e, TextElement.FontSizeProperty, FontSizeProperty);
+            DataGridHelper.SyncColumnProperty(this, e, TextElement.FontStyleProperty, FontStyleProperty);
+            DataGridHelper.SyncColumnProperty(this, e, TextElement.FontWeightProperty, FontWeightProperty);
+            DataGridHelper.SyncColumnProperty(this, e, TextElement.ForegroundProperty, ForegroundProperty);
+        }
+
+        protected internal override void RefreshCellContent(FrameworkElement element, string propertyName)
+        {
+            DataGridCell cell = element as DataGridCell;
+            
+            if (cell != null)
+            {
+                FrameworkElement textElement = cell.Content as FrameworkElement;
+
+                if (textElement != null)
+                {
+                    switch (propertyName)
+                    {
+                        case "FontFamily":
+                            DataGridHelper.SyncColumnProperty(this, textElement, TextElement.FontFamilyProperty, FontFamilyProperty);
+                            break;
+                        case "FontSize":
+                            DataGridHelper.SyncColumnProperty(this, textElement, TextElement.FontSizeProperty, FontSizeProperty);
+                            break;
+                        case "FontStyle":
+                            DataGridHelper.SyncColumnProperty(this, textElement, TextElement.FontStyleProperty, FontStyleProperty);
+                            break;
+                        case "FontWeight":
+                            DataGridHelper.SyncColumnProperty(this, textElement, TextElement.FontWeightProperty, FontWeightProperty);
+                            break;
+                        case "Foreground":
+                            DataGridHelper.SyncColumnProperty(this, textElement, TextElement.ForegroundProperty, ForegroundProperty);
+                            break;
+                    }
+                }
+            }
+            
+            base.RefreshCellContent(element, propertyName);
         }
 
         #endregion
@@ -149,7 +197,7 @@ namespace Microsoft.Windows.Controls
             return null;
         }
 
-        private bool PlaceCaretOnTextBox(TextBox textBox, Point position)
+        private static bool PlaceCaretOnTextBox(TextBox textBox, Point position)
         {
             int characterIndex = textBox.GetCharacterIndexFromPoint(position, /* snapToText = */ false);
             if (characterIndex >= 0)
@@ -165,12 +213,30 @@ namespace Microsoft.Windows.Controls
         ///     Called when a cell's value is to be committed, just before it exits edit mode.
         /// </summary>
         /// <param name="editingElement">A reference to element returned by GenerateEditingElement.</param>
-        protected override void CommitCellEdit(FrameworkElement editingElement)
+        /// <returns>false if there is a validation error. true otherwise.</returns>
+        protected override bool CommitCellEdit(FrameworkElement editingElement)
         {
             TextBox textBox = editingElement as TextBox;
             if (textBox != null)
             {
-                UpdateSource(textBox, TextBox.TextProperty);
+                DataGridHelper.UpdateSource(textBox, TextBox.TextProperty);
+                return !Validation.GetHasError(textBox);
+            }
+            
+            return true;
+        }
+
+        /// <summary>
+        ///     Called when a cell's value is to be cancelled, just before it exits edit mode.
+        /// </summary>
+        /// <param name="editingElement">A reference to element returned by GenerateEditingElement.</param>
+        /// <param name="uneditedValue">UneditedValue</param>
+        protected override void CancelCellEdit(FrameworkElement editingElement, object uneditedValue)
+        {
+            TextBox textBox = editingElement as TextBox;
+            if (textBox != null)
+            {
+                DataGridHelper.UpdateTarget(textBox, TextBox.TextProperty);
             }
         }
 
@@ -181,6 +247,117 @@ namespace Microsoft.Windows.Controls
             {
                 BeginEdit(e);
             }
+        }
+
+        #endregion
+
+        #region Element Properties
+
+        /// <summary>
+        ///     The DependencyProperty for the FontFamily property.
+        ///     Flags:              Can be used in style rules
+        ///     Default Value:      System Dialog Font
+        /// </summary>
+        public static readonly DependencyProperty FontFamilyProperty =
+                TextElement.FontFamilyProperty.AddOwner(
+                        typeof(DataGridTextColumn),
+                        new FrameworkPropertyMetadata(SystemFonts.MessageFontFamily, FrameworkPropertyMetadataOptions.Inherits, DataGridColumn.NotifyPropertyChangeForRefreshContent));
+
+        /// <summary>
+        ///     The font family of the desired font.
+        ///     This will only affect controls whose template uses the property
+        ///     as a parameter. On other controls, the property will do nothing.
+        /// </summary>
+        public FontFamily FontFamily
+        {
+            get { return (FontFamily)GetValue(FontFamilyProperty); }
+            set { SetValue(FontFamilyProperty, value); }
+        }
+
+        /// <summary>
+        ///     The DependencyProperty for the FontSize property.
+        ///     Flags:              Can be used in style rules
+        ///     Default Value:      System Dialog Font Size
+        /// </summary>
+        public static readonly DependencyProperty FontSizeProperty =
+                TextElement.FontSizeProperty.AddOwner(
+                        typeof(DataGridTextColumn),
+                        new FrameworkPropertyMetadata(SystemFonts.MessageFontSize, FrameworkPropertyMetadataOptions.Inherits, DataGridColumn.NotifyPropertyChangeForRefreshContent));
+
+        /// <summary>
+        ///     The size of the desired font.
+        ///     This will only affect controls whose template uses the property
+        ///     as a parameter. On other controls, the property will do nothing.
+        /// </summary>
+        [TypeConverter(typeof(FontSizeConverter))]
+        [Localizability(LocalizationCategory.None)]
+        public double FontSize
+        {
+            get { return (double)GetValue(FontSizeProperty); }
+            set { SetValue(FontSizeProperty, value); }
+        }
+
+        /// <summary>
+        ///     The DependencyProperty for the FontStyle property.
+        ///     Flags:              Can be used in style rules
+        ///     Default Value:      System Dialog Font Style
+        /// </summary>
+        public static readonly DependencyProperty FontStyleProperty =
+                TextElement.FontStyleProperty.AddOwner(
+                        typeof(DataGridTextColumn),
+                        new FrameworkPropertyMetadata(SystemFonts.MessageFontStyle, FrameworkPropertyMetadataOptions.Inherits, DataGridColumn.NotifyPropertyChangeForRefreshContent));
+
+        /// <summary>
+        ///     The style of the desired font.
+        ///     This will only affect controls whose template uses the property
+        ///     as a parameter. On other controls, the property will do nothing.
+        /// </summary>
+        public FontStyle FontStyle
+        {
+            get { return (FontStyle)GetValue(FontStyleProperty); }
+            set { SetValue(FontStyleProperty, value); }
+        }
+
+        /// <summary>
+        ///     The DependencyProperty for the FontWeight property.
+        ///     Flags:              Can be used in style rules
+        ///     Default Value:      System Dialog Font Weight
+        /// </summary>
+        public static readonly DependencyProperty FontWeightProperty =
+                TextElement.FontWeightProperty.AddOwner(
+                        typeof(DataGridTextColumn),
+                        new FrameworkPropertyMetadata(SystemFonts.MessageFontWeight, FrameworkPropertyMetadataOptions.Inherits, DataGridColumn.NotifyPropertyChangeForRefreshContent));
+
+        /// <summary>
+        ///     The weight or thickness of the desired font.
+        ///     This will only affect controls whose template uses the property
+        ///     as a parameter. On other controls, the property will do nothing.
+        /// </summary>
+        public FontWeight FontWeight
+        {
+            get { return (FontWeight)GetValue(FontWeightProperty); }
+            set { SetValue(FontWeightProperty, value); }
+        }
+
+        /// <summary>
+        ///     The DependencyProperty for the Foreground property.
+        ///     Flags:              Can be used in style rules
+        ///     Default Value:      System Font Color
+        /// </summary>
+        public static readonly DependencyProperty ForegroundProperty =
+                TextElement.ForegroundProperty.AddOwner(
+                        typeof(DataGridTextColumn),
+                        new FrameworkPropertyMetadata(SystemColors.ControlTextBrush, FrameworkPropertyMetadataOptions.Inherits, DataGridColumn.NotifyPropertyChangeForRefreshContent));
+
+        /// <summary>
+        ///     An brush that describes the foreground color.
+        ///     This will only affect controls whose template uses the property
+        ///     as a parameter. On other controls, the property will do nothing.
+        /// </summary>
+        public Brush Foreground
+        {
+            get { return (Brush)GetValue(ForegroundProperty); }
+            set { SetValue(ForegroundProperty, value); }
         }
 
         #endregion

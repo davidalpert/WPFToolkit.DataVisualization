@@ -5,23 +5,26 @@
 //---------------------------------------------------------------------------
 
 using System;
-using System.ComponentModel;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Security;
+using System.Text;
 using System.Windows;
+using System.Windows.Automation.Peers;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using Microsoft.Windows.Automation.Peers;
+using Microsoft.Windows.Controls.Primitives;
 using MS.Internal;
-using System.Text;
-using System.Security;
 
 namespace Microsoft.Windows.Controls
 {
@@ -41,13 +44,17 @@ namespace Microsoft.Windows.Controls
             Type ownerType = typeof(DataGrid);
 
             DefaultStyleKeyProperty.OverrideMetadata(ownerType, new FrameworkPropertyMetadata(typeof(DataGrid)));
-            ItemsPanelProperty.OverrideMetadata(ownerType, new FrameworkPropertyMetadata(new ItemsPanelTemplate(new FrameworkElementFactory(typeof(DataGridRowsPresenter)))));
+            FrameworkElementFactory dataGridRowPresenterFactory = new FrameworkElementFactory(typeof(DataGridRowsPresenter));
+            dataGridRowPresenterFactory.SetValue(FrameworkElement.NameProperty, ItemsPanelPartName);
+            ItemsPanelProperty.OverrideMetadata(ownerType, new FrameworkPropertyMetadata(new ItemsPanelTemplate(dataGridRowPresenterFactory)));
+            VirtualizingStackPanel.IsVirtualizingProperty.OverrideMetadata(ownerType, new FrameworkPropertyMetadata(true, null, new CoerceValueCallback(OnCoerceIsVirtualizingProperty)));
             VirtualizingStackPanel.VirtualizationModeProperty.OverrideMetadata(ownerType, new FrameworkPropertyMetadata(VirtualizationMode.Recycling));
             ItemContainerStyleProperty.OverrideMetadata(ownerType, new FrameworkPropertyMetadata(null, new CoerceValueCallback(OnCoerceItemContainerStyle)));
             ItemContainerStyleSelectorProperty.OverrideMetadata(ownerType, new FrameworkPropertyMetadata(null, new CoerceValueCallback(OnCoerceItemContainerStyleSelector)));
+            ItemsSourceProperty.OverrideMetadata(ownerType, new FrameworkPropertyMetadata((PropertyChangedCallback)null, OnCoerceItemsSourceProperty));
             AlternationCountProperty.OverrideMetadata(ownerType, new FrameworkPropertyMetadata(0, null, new CoerceValueCallback(OnCoerceAlternationCount)));
             IsEnabledProperty.OverrideMetadata(ownerType, new FrameworkPropertyMetadata(new PropertyChangedCallback(OnIsEnabledChanged)));
-
+            IsSynchronizedWithCurrentItemProperty.OverrideMetadata(ownerType, new FrameworkPropertyMetadata(null, new CoerceValueCallback(OnCoerceIsSynchronizedWithCurrentItem)));
             IsTabStopProperty.OverrideMetadata(ownerType, new FrameworkPropertyMetadata(false));
             KeyboardNavigation.DirectionalNavigationProperty.OverrideMetadata(ownerType, new FrameworkPropertyMetadata(KeyboardNavigationMode.Contained));
             KeyboardNavigation.ControlTabNavigationProperty.OverrideMetadata(ownerType, new FrameworkPropertyMetadata(KeyboardNavigationMode.Once));
@@ -80,12 +87,20 @@ namespace Microsoft.Windows.Controls
             _columns = new DataGridColumnCollection(this);
             _columns.CollectionChanged += new NotifyCollectionChangedEventHandler(OnColumnsChanged);
 
+            _rowValidationRules = new ObservableCollection<ValidationRule>();
+            _rowValidationRules.CollectionChanged += new NotifyCollectionChangedEventHandler(OnRowValidationRulesChanged);
+
             _selectedCells = new SelectedCellsCollection(this);
 
             ((INotifyCollectionChanged)Items).CollectionChanged += new NotifyCollectionChangedEventHandler(OnItemsCollectionChanged);
 
-            ((INotifyCollectionChanged)(Items.SortDescriptions)).CollectionChanged += new NotifyCollectionChangedEventHandler(OnItemsSortDescriptionsChanged);
+            ((INotifyCollectionChanged)Items.SortDescriptions).CollectionChanged += new NotifyCollectionChangedEventHandler(OnItemsSortDescriptionsChanged);
             Items.GroupDescriptions.CollectionChanged += new NotifyCollectionChangedEventHandler(OnItemsGroupDescriptionsChanged);
+
+            // Compute column widths but wait until first load
+            InternalColumns.InvalidateColumnWidthsComputation();
+
+            CellsPanelHorizontalOffsetComputationPending = false;
         }
 
         #endregion
@@ -104,7 +119,7 @@ namespace Microsoft.Windows.Controls
         /// <summary>
         ///     Returns the column collection without having to upcast from ObservableCollection
         /// </summary>
-        private DataGridColumnCollection InternalColumns
+        internal DataGridColumnCollection InternalColumns
         {
             get { return _columns; }
         }
@@ -142,7 +157,6 @@ namespace Microsoft.Windows.Controls
         public static readonly DependencyProperty ColumnWidthProperty =
             DependencyProperty.Register("ColumnWidth", typeof(DataGridLength), typeof(DataGrid), new FrameworkPropertyMetadata(DataGridLength.SizeToHeader));
 
-
         /// <summary>
         ///     Specifies the minimum width of the header and cells within all columns.
         /// </summary>
@@ -156,10 +170,12 @@ namespace Microsoft.Windows.Controls
         ///     The DependencyProperty that represents the MinColumnWidth property.
         /// </summary>
         public static readonly DependencyProperty MinColumnWidthProperty =
-            DependencyProperty.Register("MinColumnWidth", typeof(double), typeof(DataGrid),
-                                        new FrameworkPropertyMetadata(20d, new PropertyChangedCallback(OnColumnSizeConstraintChanged)),
-                                        new ValidateValueCallback(ValidateMinColumnWidth));
-
+            DependencyProperty.Register(
+                "MinColumnWidth", 
+                typeof(double), 
+                typeof(DataGrid),
+                new FrameworkPropertyMetadata(20d, new PropertyChangedCallback(OnColumnSizeConstraintChanged)),
+                new ValidateValueCallback(ValidateMinColumnWidth));
 
         /// <summary>
         ///     Specifies the maximum width of the header and cells within all columns.
@@ -174,10 +190,12 @@ namespace Microsoft.Windows.Controls
         ///     The DependencyProperty that represents the  MaxColumnWidth property.
         /// </summary>
         public static readonly DependencyProperty MaxColumnWidthProperty =
-            DependencyProperty.Register("MaxColumnWidth", typeof(double), typeof(DataGrid),
-                                        new FrameworkPropertyMetadata(double.PositiveInfinity, new PropertyChangedCallback(OnColumnSizeConstraintChanged)),
-                                        new ValidateValueCallback(ValidateMaxColumnWidth));
-
+            DependencyProperty.Register(
+                "MaxColumnWidth", 
+                typeof(double), 
+                typeof(DataGrid),
+                new FrameworkPropertyMetadata(double.PositiveInfinity, new PropertyChangedCallback(OnColumnSizeConstraintChanged)),
+                new ValidateValueCallback(ValidateMaxColumnWidth));
 
         private static void OnColumnSizeConstraintChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
@@ -239,7 +257,22 @@ namespace Microsoft.Windows.Controls
                 CoerceValue(FrozenColumnCountProperty);
             }
 
+            bool visibleColumnsChanged = HasVisibleColumns(e.OldItems);
+            visibleColumnsChanged |= HasVisibleColumns(e.NewItems);
+            visibleColumnsChanged |= (e.Action == NotifyCollectionChangedAction.Reset);
+
+            if (visibleColumnsChanged)
+            {
+                InternalColumns.InvalidateColumnRealization(true);
+            }
+
             UpdateColumnsOnRows(e);
+
+            // Recompute the column width if required, but wait until the first load
+            if (visibleColumnsChanged && e.Action != NotifyCollectionChangedAction.Move)
+            {
+                InternalColumns.InvalidateColumnWidthsComputation();
+            }
         }
 
         /// <summary>
@@ -247,7 +280,7 @@ namespace Microsoft.Windows.Controls
         /// </summary>
         /// <param name="list">The list of affected columns.</param>
         /// <param name="clear">Whether to add or remove the reference to this grid.</param>
-        private void UpdateDataGridReference(IList list, bool clear)
+        internal void UpdateDataGridReference(IList list, bool clear)
         {
             int numItems = list.Count;
             for (int i = 0; i < numItems; i++)
@@ -278,7 +311,7 @@ namespace Microsoft.Windows.Controls
         ///     Updates the transferred size constraints from DataGrid on the columns.
         /// </summary>
         /// <param name="list">The list of affected columns.</param>
-        private void UpdateColumnSizeConstraints(IList list)
+        private static void UpdateColumnSizeConstraints(IList list)
         {
             var count = list.Count;
             for (var i = 0; i < count; i++)
@@ -286,6 +319,26 @@ namespace Microsoft.Windows.Controls
                 var column = (DataGridColumn)list[i];
                 column.SyncProperties();
             }
+        }
+
+        /// <summary>
+        ///     Helper method which determines if the
+        ///     given list has visible columns
+        /// </summary>
+        private static bool HasVisibleColumns(IList columns)
+        {
+            if (columns != null && columns.Count > 0)
+            {
+                foreach (DataGridColumn column in columns)
+                {
+                    if (column.IsVisible)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
         #endregion
@@ -306,6 +359,11 @@ namespace Microsoft.Windows.Controls
         }
 
         /// <summary>
+        ///     Event that is fired when the DisplayIndex on one of the DataGrid's Columns changes.
+        /// </summary>
+        public event EventHandler<DataGridColumnEventArgs> ColumnDisplayIndexChanged;
+
+        /// <summary>
         ///     Called when the DisplayIndex of a column is modified.
         /// </summary>
         /// <remarks>
@@ -314,8 +372,11 @@ namespace Microsoft.Windows.Controls
         /// </remarks>
         protected internal virtual void OnColumnDisplayIndexChanged(DataGridColumnEventArgs e)
         {
+            if (ColumnDisplayIndexChanged != null)
+            {
+                ColumnDisplayIndexChanged(this, e);
+            }
         }
-
 
         /// <summary>
         ///     A map of display index (key) to index in the column collection (value).  
@@ -334,7 +395,6 @@ namespace Microsoft.Windows.Controls
             InternalColumns.ValidateDisplayIndex(column, displayIndex);
         }
 
-
         /// <summary>
         ///     Returns the index of a column from the given DisplayIndex
         /// </summary>
@@ -342,13 +402,11 @@ namespace Microsoft.Windows.Controls
         {
             if (displayIndex >= 0 && displayIndex < DisplayIndexMap.Count)
             {
-                Debug.Assert(ColumnFromDisplayIndex(displayIndex).DisplayIndex == displayIndex, "DisplayIndexMap corrupted");
                 return DisplayIndexMap[displayIndex];
             }
 
             return -1;
         }
-
 
         /// <summary>
         ///     Given the DisplayIndex of a column returns the DataGridColumnHeader for that column.
@@ -431,7 +489,6 @@ namespace Microsoft.Windows.Controls
             ((DataGrid)d).NotifyPropertyChanged(d, e, NotificationTarget.Rows | NotificationTarget.DataGrid);
         }
 
-
         /// <summary>
         ///     Notifies everyone who cares about GridLine property changes (Row, Cell, RowHeader, ColumnHeader)
         /// </summary>
@@ -443,13 +500,11 @@ namespace Microsoft.Windows.Controls
             //
             // ItemsControl.OnItemTemplateChanged calls the internal ItemContainerGenerator.Refresh() method, which
             // clears out all containers and notifies the panel.  The fact we're passing in two null templates is ignored.
-            //
             if (e.OldValue != e.NewValue)
             {
                 ((DataGrid)d).OnItemTemplateChanged(null, null);
             }
         }
-
 
         /// <summary>
         ///     Notifies each Row about property changes.
@@ -458,7 +513,6 @@ namespace Microsoft.Windows.Controls
         {
             ((DataGrid)d).NotifyPropertyChanged(d, e, NotificationTarget.Rows);
         }
-
 
         /// <summary>
         ///     Notifies the Row Headers about property changes.
@@ -474,6 +528,22 @@ namespace Microsoft.Windows.Controls
         private static void OnNotifyRowAndRowHeaderPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             ((DataGrid)d).NotifyPropertyChanged(d, e, NotificationTarget.Rows | NotificationTarget.RowHeaders);
+        }
+
+        /// <summary>
+        ///     Notifies the Row & Details about property changes.
+        /// </summary>
+        private static void OnNotifyRowAndDetailsPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            ((DataGrid)d).NotifyPropertyChanged(d, e, NotificationTarget.Rows | NotificationTarget.DetailsPresenter);
+        }
+
+        /// <summary>
+        ///     Notifies HorizontalOffset change to columns collection, cellspresenter and column headers presenter
+        /// </summary>
+        private static void OnNotifyHorizontalOffsetPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            ((DataGrid)d).NotifyPropertyChanged(d, e, NotificationTarget.ColumnCollection | NotificationTarget.CellsPresenter | NotificationTarget.ColumnHeadersPresenter);
         }
 
         /// <summary>
@@ -501,13 +571,17 @@ namespace Microsoft.Windows.Controls
         /// </remarks>
         internal void NotifyPropertyChanged(DependencyObject d, string propertyName, DependencyPropertyChangedEventArgs e, NotificationTarget target)
         {
-            if (DataGridHelper.ShouldNotifyDataGrid(target) && e.Property == AlternatingRowBackgroundProperty)
+            if (DataGridHelper.ShouldNotifyDataGrid(target))
             {
-                // If the alternate row background is set, the count may be coerced to 2
-                CoerceValue(AlternationCountProperty);
+                if (e.Property == AlternatingRowBackgroundProperty)
+                {
+                    // If the alternate row background is set, the count may be coerced to 2
+                    CoerceValue(AlternationCountProperty);
+                }
             }
 
-            if (DataGridHelper.ShouldNotifyRowSubtree(target))  // Rows, Cells, CellsPresenter, DetailsPresenter or RowHeaders
+            // Rows, Cells, CellsPresenter, DetailsPresenter or RowHeaders
+            if (DataGridHelper.ShouldNotifyRowSubtree(target))  
             {
                 // Notify the Rows about the property change
                 ContainerTracking<DataGridRow> tracker = _rowTrackingRoot;
@@ -518,14 +592,14 @@ namespace Microsoft.Windows.Controls
                 }
             }
 
-            if ((DataGridHelper.ShouldNotifyColumnHeadersPresenter(target) || DataGridHelper.ShouldNotifyColumnHeaders(target)) && ColumnHeadersPresenter != null)
-            {
-                ColumnHeadersPresenter.NotifyPropertyChanged(d, e, target);   
-            }
-
             if (DataGridHelper.ShouldNotifyColumnCollection(target) || DataGridHelper.ShouldNotifyColumns(target))
             {
-                InternalColumns.NotifyPropertyChanged(d, e, target);
+                InternalColumns.NotifyPropertyChanged(d, propertyName, e, target);
+            }
+
+            if ((DataGridHelper.ShouldNotifyColumnHeadersPresenter(target) || DataGridHelper.ShouldNotifyColumnHeaders(target)) && ColumnHeadersPresenter != null)
+            {
+                ColumnHeadersPresenter.NotifyPropertyChanged(d, propertyName, e, target);   
             }
         }
 
@@ -546,7 +620,7 @@ namespace Microsoft.Windows.Controls
         /// </summary>
         internal DataGridColumnHeadersPresenter ColumnHeadersPresenter
         {
-            private get { return _columnHeadersPresenter; }
+            get { return _columnHeadersPresenter; }
             set { _columnHeadersPresenter = value; }
         }
 
@@ -577,9 +651,11 @@ namespace Microsoft.Windows.Controls
         ///     GridLinesVisibility Dependency Property
         /// </summary>
         public static readonly DependencyProperty GridLinesVisibilityProperty =
-                    DependencyProperty.Register("GridLinesVisibility", typeof(DataGridGridLinesVisibility), typeof(DataGrid),
-                                                new FrameworkPropertyMetadata(DataGridGridLinesVisibility.All, new PropertyChangedCallback(OnNotifyGridLinePropertyChanged)));
-
+            DependencyProperty.Register(
+                "GridLinesVisibility", 
+                typeof(DataGridGridLinesVisibility), 
+                typeof(DataGrid),
+                new FrameworkPropertyMetadata(DataGridGridLinesVisibility.All, new PropertyChangedCallback(OnNotifyGridLinePropertyChanged)));
 
         /// <summary>
         ///     Specifies the visibility of the DataGrid's grid lines
@@ -590,14 +666,15 @@ namespace Microsoft.Windows.Controls
             set { SetValue(GridLinesVisibilityProperty, value); }
         }
 
-
         /// <summary>
         /// HorizontalGridLinesBrush Dependency Property
         /// </summary>
         public static readonly DependencyProperty HorizontalGridLinesBrushProperty =
-                    DependencyProperty.Register("HorizontalGridLinesBrush", typeof(Brush), typeof(DataGrid),
-                                                new FrameworkPropertyMetadata(Brushes.Black, new PropertyChangedCallback(OnNotifyGridLinePropertyChanged)));
-
+            DependencyProperty.Register(
+                "HorizontalGridLinesBrush", 
+                typeof(Brush), 
+                typeof(DataGrid),
+                new FrameworkPropertyMetadata(Brushes.Black, new PropertyChangedCallback(OnNotifyGridLinePropertyChanged)));
 
         /// <summary>
         /// Specifies the Brush used to draw the horizontal grid lines
@@ -612,9 +689,11 @@ namespace Microsoft.Windows.Controls
         /// VerticalGridLinesBrush Dependency Property
         /// </summary>
         public static readonly DependencyProperty VerticalGridLinesBrushProperty =
-                    DependencyProperty.Register("VerticalGridLinesBrush", typeof(Brush), typeof(DataGrid),
-                                                new FrameworkPropertyMetadata(Brushes.Black, new PropertyChangedCallback(OnNotifyGridLinePropertyChanged)));
-
+            DependencyProperty.Register(
+                "VerticalGridLinesBrush", 
+                typeof(Brush), 
+                typeof(DataGrid),
+                new FrameworkPropertyMetadata(Brushes.Black, new PropertyChangedCallback(OnNotifyGridLinePropertyChanged)));
 
         /// <summary>
         /// Specifies the Brush used to draw the vertical grid lines
@@ -624,7 +703,6 @@ namespace Microsoft.Windows.Controls
             get { return (Brush)GetValue(VerticalGridLinesBrushProperty); }
             set { SetValue(VerticalGridLinesBrushProperty, value); }
         }
-
 
 #if GridLineThickness
         /// <summary>
@@ -672,7 +750,6 @@ namespace Microsoft.Windows.Controls
         }
 #endif
 
-
         #endregion 
 
         #region Row Generation
@@ -709,8 +786,14 @@ namespace Microsoft.Windows.Controls
             if (row.DataGridOwner != this)
             {
                 row.Tracker.StartTracking(ref _rowTrackingRoot);
+                EnsureInternalScrollControls();
             }
+
+            // We dont want changes to DetailsVisibilty to fire the LoadingRowDetails event during prepare, so we disable it.
+            row.DetailsEventStatus = DataGridRow.RowDetailsEventStatus.Disabled;
             row.PrepareRow(item, this);
+            row.DetailsEventStatus = DataGridRow.RowDetailsEventStatus.Pending;
+            OnLoadingRow(new DataGridRowEventArgs(row));
         }
 
         /// <summary>
@@ -727,7 +810,9 @@ namespace Microsoft.Windows.Controls
             {
                 row.Tracker.StopTracking(ref _rowTrackingRoot);
             }
-            row.ClearRow(item, this);
+            
+            OnUnloadingRow(new DataGridRowEventArgs(row));
+            row.ClearRow(this);
         }
 
         /// <summary>
@@ -780,6 +865,90 @@ namespace Microsoft.Windows.Controls
         }
 
         /// <summary>
+        /// Template used to visually indicate an error in row Validation.
+        /// </summary>
+        public ControlTemplate RowValidationErrorTemplate
+        {
+            get { return (ControlTemplate)GetValue(RowValidationErrorTemplateProperty); }
+            set { SetValue(RowValidationErrorTemplateProperty, value); }
+        }
+
+        /// <summary>
+        ///     DependencyProperty for the RowValidationErrorTemplate property.
+        /// </summary>
+        public static readonly DependencyProperty RowValidationErrorTemplateProperty =
+            DependencyProperty.Register("RowValidationErrorTemplate", typeof(ControlTemplate), typeof(DataGrid), new FrameworkPropertyMetadata(null, new PropertyChangedCallback(OnNotifyRowPropertyChanged)));
+
+        /// <summary>
+        ///     Validation rules that are run on each DataGridRow.  If DataGrid.ItemBindingGroup is used, RowValidationRules is ignored.
+        /// </summary>
+        public ObservableCollection<ValidationRule> RowValidationRules
+        {
+            get { return _rowValidationRules; }
+        }
+
+        /// <summary>
+        ///     Called when the Columns collection changes.
+        /// </summary>
+        private void OnRowValidationRulesChanged(object sender, NotifyCollectionChangedEventArgs e)
+        {
+            BindingGroup itemBindingGroup = ItemBindingGroup;
+
+            if (itemBindingGroup == null)
+            {
+                ItemBindingGroup = itemBindingGroup = new BindingGroup();
+                _rowValidationBindingGroup = itemBindingGroup;
+            }
+
+            // only update the ItemBindingGroup if it's not user created.
+            if (_rowValidationBindingGroup != null)
+            {
+                if (object.ReferenceEquals(itemBindingGroup, _rowValidationBindingGroup))
+                {
+                    switch (e.Action)
+                    {
+                        case NotifyCollectionChangedAction.Add:
+                            foreach (ValidationRule rule in e.NewItems)
+                            {
+                                _rowValidationBindingGroup.ValidationRules.Add(rule);
+                            }
+
+                            break;
+
+                        case NotifyCollectionChangedAction.Remove:
+                            foreach (ValidationRule rule in e.OldItems)
+                            {
+                                _rowValidationBindingGroup.ValidationRules.Remove(rule);
+                            }
+
+                            break;
+
+                        case NotifyCollectionChangedAction.Replace:
+                            foreach (ValidationRule rule in e.OldItems)
+                            {
+                                _rowValidationBindingGroup.ValidationRules.Remove(rule);
+                            }
+
+                            foreach (ValidationRule rule in e.NewItems)
+                            {
+                                _rowValidationBindingGroup.ValidationRules.Add(rule);
+                            }
+
+                            break;
+
+                        case NotifyCollectionChangedAction.Reset:
+                            _rowValidationBindingGroup.ValidationRules.Clear();
+                            break;
+                    }
+                }
+                else
+                {
+                    _rowValidationBindingGroup = null;
+                }
+            }
+        }
+
+        /// <summary>
         ///     Equivalent of ItemContainerStyleSelector.
         /// </summary>
         /// <remarks>
@@ -813,6 +982,19 @@ namespace Microsoft.Windows.Controls
             return baseValue;
         }
 
+        private static object OnCoerceIsSynchronizedWithCurrentItem(DependencyObject d, object baseValue)
+        {
+            DataGrid dataGrid = (DataGrid)d;
+            if (dataGrid.SelectionUnit == DataGridSelectionUnit.Cell)
+            {
+                // IsSynchronizedWithCurrentItem makes IsSelected=true on the current row. 
+                // When SelectionUnit is Cell, we should not allow row selection. 
+                return false;
+            }
+
+            return baseValue;
+        }
+
         /// <summary>
         ///     The default row background brush.
         /// </summary>
@@ -827,7 +1009,6 @@ namespace Microsoft.Windows.Controls
         /// </summary>
         public static readonly DependencyProperty RowBackgroundProperty =
             DependencyProperty.Register("RowBackground", typeof(Brush), typeof(DataGrid), new FrameworkPropertyMetadata(null, new PropertyChangedCallback(OnNotifyRowPropertyChanged)));
-
 
         /// <summary>
         ///     The default row background brush for use on every other row.
@@ -894,7 +1075,6 @@ namespace Microsoft.Windows.Controls
         public static readonly DependencyProperty MinRowHeightProperty =
             DependencyProperty.Register("MinRowHeight", typeof(double), typeof(DataGrid), new FrameworkPropertyMetadata(0.0, new PropertyChangedCallback(OnNotifyCellsPresenterPropertyChanged)));
 
-
         /// <summary>
         ///     The NewItemPlaceholder row uses this to set its visibility while it's preparing.
         /// </summary>
@@ -903,6 +1083,66 @@ namespace Microsoft.Windows.Controls
             get
             {
                 return _placeholderVisibility;
+            }
+        }
+
+        /// <summary>
+        ///     Event that is fired just before a row is prepared.
+        /// </summary>
+        public event EventHandler<DataGridRowEventArgs> LoadingRow;
+
+        /// <summary>
+        ///     Event that is fired just before a row is cleared.
+        /// </summary>
+        public event EventHandler<DataGridRowEventArgs> UnloadingRow;
+
+        /// <summary>
+        ///     Invokes the LoadingRow event
+        /// </summary>
+        protected virtual void OnLoadingRow(DataGridRowEventArgs e)
+        {
+            if (LoadingRow != null)
+            {
+                LoadingRow(this, e);
+            }
+
+            var row = e.Row;
+            if (row.DetailsVisibility == Visibility.Visible && row.DetailsPresenter != null)
+            {
+                // Invoke LoadingRowDetails, but only after the details template is expanded (so DetailsElement will be available).
+                // We dont want changes to DetailsVisibilty to fire the event before this dispatcher operation fires, so we disable it.
+                row.DetailsEventStatus = DataGridRow.RowDetailsEventStatus.Disabled;
+                Dispatcher.CurrentDispatcher.BeginInvoke(new DispatcherOperationCallback(DelayedOnLoadingRowDetails), DispatcherPriority.Loaded, row);
+            }
+        }
+
+        private static object DelayedOnLoadingRowDetails(object arg)
+        {
+            var row = (DataGridRow)arg;
+            var dataGrid = row.DataGridOwner;
+
+            if (dataGrid != null && row.DetailsPresenter != null)
+            {
+                dataGrid.OnLoadingRowDetails(new DataGridRowDetailsEventArgs(row, row.DetailsPresenter.DetailsElement));
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        ///     Invokes the UnloadingRow event
+        /// </summary>
+        protected virtual void OnUnloadingRow(DataGridRowEventArgs e)
+        {
+            if (UnloadingRow != null)
+            {
+                UnloadingRow(this, e);
+            }
+
+            var row = e.Row;
+            if (row.DetailsEventStatus == DataGridRow.RowDetailsEventStatus.Loaded && row.DetailsPresenter != null)
+            {
+                OnUnloadingRowDetails(new DataGridRowDetailsEventArgs(row, row.DetailsPresenter.DetailsElement));
             }
         }
 
@@ -937,14 +1177,13 @@ namespace Microsoft.Windows.Controls
         /// <summary>
         ///     The DependencyPropertyKey for RowHeaderActualWidth.
         /// </summary>
-        private static readonly DependencyPropertyKey  RowHeaderActualWidthPropertyKey = 
+        private static readonly DependencyPropertyKey RowHeaderActualWidthPropertyKey =
             DependencyProperty.RegisterReadOnly("RowHeaderActualWidth", typeof(double), typeof(DataGrid), new FrameworkPropertyMetadata(0.0, new PropertyChangedCallback(OnNotifyRowHeaderPropertyChanged)));
 
         /// <summary>
         ///     The DependencyProperty for RowHeaderActualWidth.
         /// </summary>
         public static readonly DependencyProperty RowHeaderActualWidthProperty = RowHeaderActualWidthPropertyKey.DependencyProperty;            
-
 
         /// <summary>
         ///     The default height of a column header.
@@ -976,7 +1215,6 @@ namespace Microsoft.Windows.Controls
         public static readonly DependencyProperty HeadersVisibilityProperty =
             DependencyProperty.Register("HeadersVisibility", typeof(DataGridHeadersVisibility), typeof(DataGrid), new FrameworkPropertyMetadata(DataGridHeadersVisibility.All));
 
-
         /// <summary>
         ///     Updates RowHeaderActualWidth to reflect changes to RowHeaderWidth 
         /// </summary>
@@ -991,10 +1229,8 @@ namespace Microsoft.Windows.Controls
             }
             else
             {
-                //
                 // If we're entering Auto mode we need to reset the RowHeaderActualWidth 
                 // because the previous explicit value may have been bigger than the Auto width.
-                //
                 dataGrid.RowHeaderActualWidth = 0.0;
             }
 
@@ -1010,6 +1246,80 @@ namespace Microsoft.Windows.Controls
             {
                 RowHeaderActualWidth = 0.0;
             }
+        }
+
+        #endregion
+
+        #region Item Associated Properties
+
+        /// <summary>
+        ///     Sets the specified item's DetailsVisibility.
+        /// </summary>
+        /// <remarks>
+        ///     This is useful when a DataGridRow may not currently exists to set DetailsVisibility on.
+        /// </remarks>
+        /// <param name="item">The item that will have its DetailsVisibility set.</param>
+        /// <param name="detailsVisibility">The Visibility that the item's details should get.</param>
+        public void SetDetailsVisibilityForItem(object item, Visibility detailsVisibility)
+        {
+            _itemAttachedStorage.SetValue(item, DataGridRow.DetailsVisibilityProperty, detailsVisibility);
+
+            var row = (DataGridRow)ItemContainerGenerator.ContainerFromItem(item);
+            if (row != null)
+            {
+                row.DetailsVisibility = detailsVisibility;
+            }
+        }
+
+        /// <summary>
+        ///     Returns the current DetailsVisibility for an item that's in the DataGrid.
+        /// </summary>
+        /// <param name="item">The item who's DetailsVisibility you would like to get</param>
+        /// <returns>The DetailsVisibility associated with the specified item.</returns>
+        public Visibility GetDetailsVisibilityForItem(object item)
+        {
+            object detailsVisibility;
+            if (_itemAttachedStorage.TryGetValue(item, DataGridRow.DetailsVisibilityProperty, out detailsVisibility))
+            {
+                return (Visibility)detailsVisibility;
+            }
+
+            var row = (DataGridRow)ItemContainerGenerator.ContainerFromItem(item);
+            if (row != null)
+            {
+                return row.DetailsVisibility;
+            }
+
+            // If we dont have a row, we can infer it's Visibility from the current RowDetailsVisibilityMode
+            switch (RowDetailsVisibilityMode)
+            {
+                case DataGridRowDetailsVisibilityMode.VisibleWhenSelected:
+                    return SelectedItems.Contains(item) ? Visibility.Visible : Visibility.Collapsed;
+                case DataGridRowDetailsVisibilityMode.Visible:
+                    return Visibility.Visible;
+                default:
+                    return Visibility.Collapsed;  
+            }
+        }
+
+        /// <summary>
+        ///     Clears the DetailsVisibility for the specified item
+        /// </summary>
+        /// <param name="item">The item to clear the DetailsVisibility on.</param>
+        public void ClearDetailsVisibilityForItem(object item)
+        {
+            _itemAttachedStorage.ClearValue(item, DataGridRow.DetailsVisibilityProperty);
+
+            var row = (DataGridRow)ItemContainerGenerator.ContainerFromItem(item);
+            if (row != null)
+            {
+                row.ClearValue(DataGridRow.DetailsVisibilityProperty);
+            }
+        }
+
+        internal DataGridItemAttachedStorage ItemAttachedStorage
+        {
+            get { return _itemAttachedStorage; }
         }
 
         #endregion
@@ -1062,6 +1372,36 @@ namespace Microsoft.Windows.Controls
             DependencyProperty.Register("RowHeaderStyle", typeof(Style), typeof(DataGrid), new FrameworkPropertyMetadata(null, new PropertyChangedCallback(OnNotifyRowAndRowHeaderPropertyChanged)));
 
         /// <summary>
+        ///     The object representing the Row Header template.  
+        /// </summary>
+        public DataTemplate RowHeaderTemplate
+        {
+            get { return (DataTemplate)GetValue(RowHeaderTemplateProperty); }
+            set { SetValue(RowHeaderTemplateProperty, value); }
+        }
+
+        /// <summary>
+        ///     The DependencyProperty for the RowHeaderTemplate property.
+        /// </summary>
+        public static readonly DependencyProperty RowHeaderTemplateProperty =
+            DependencyProperty.Register("RowHeaderTemplate", typeof(DataTemplate), typeof(DataGrid), new FrameworkPropertyMetadata(null, new PropertyChangedCallback(OnNotifyRowAndRowHeaderPropertyChanged)));
+
+        /// <summary>
+        ///     The object representing the Row Header template selector.  
+        /// </summary>
+        public DataTemplateSelector RowHeaderTemplateSelector
+        {
+            get { return (DataTemplateSelector)GetValue(RowHeaderTemplateSelectorProperty); }
+            set { SetValue(RowHeaderTemplateSelectorProperty, value); }
+        }
+
+        /// <summary>
+        ///     The DependencyProperty for the RowHeaderTemplateSelector property.
+        /// </summary>
+        public static readonly DependencyProperty RowHeaderTemplateSelectorProperty =
+            DependencyProperty.Register("RowHeaderTemplateSelector", typeof(DataTemplateSelector), typeof(DataGrid), new FrameworkPropertyMetadata(null, new PropertyChangedCallback(OnNotifyRowAndRowHeaderPropertyChanged)));
+
+        /// <summary>
         ///     The default style references this brush to create a thicker border
         ///     around the focused cell.
         /// </summary>
@@ -1095,6 +1435,26 @@ namespace Microsoft.Windows.Controls
                 }
 
                 return _headersVisibilityConverter;
+            }
+        }
+
+        /// <summary>
+        ///     A converter which converts bool to SelectiveScrollingOrientation based on a ConverterParameter.
+        /// </summary>
+        /// <remarks>
+        ///     This can be used in the DataGrid's template to control how the RowDetails selectively scroll based on a bool.
+        /// </remarks>
+        public static IValueConverter RowDetailsScrollingConverter
+        {
+            get
+            {
+                // This is delay created in case the template doesn't use it. 
+                if (_rowDetailsScrollingConverter == null)
+                {
+                    _rowDetailsScrollingConverter = new BooleanToSelectiveScrollingOrientationConverter();
+                }
+
+                return _rowDetailsScrollingConverter;
             }
         }
 
@@ -1154,23 +1514,35 @@ namespace Microsoft.Windows.Controls
 
         /// <summary>
         ///     Scrolls a cell into view.
+        /// If column is null then only vertical scroll is performed.
+        /// If row is null then only horizontal scroll is performed.
         /// </summary>
         /// <param name="item">The data item row that contains the cell.</param>
         /// <param name="column">The cell's column.</param>
         public void ScrollIntoView(object item, DataGridColumn column)
         {
-            if (item == null)
-            {
-                throw new ArgumentNullException("item");
-            }
             if (column == null)
             {
-                throw new ArgumentNullException("column");
+                ScrollIntoView(item);
+                return;
+            }
+
+            if (!column.IsVisible)
+            {
+                return;
             }
 
             if (ItemContainerGenerator.Status == GeneratorStatus.ContainersGenerated)
             {
-                ScrollCellIntoView(item, column);
+                // Scroll by column only
+                if (item == null) 
+                {
+                    ScrollColumnIntoView(column);
+                }
+                else
+                {
+                    ScrollCellIntoView(item, column);
+                }
             }
             else
             {
@@ -1189,7 +1561,14 @@ namespace Microsoft.Windows.Controls
             object[] arguments = arg as object[];
             if (arguments != null)
             {
-                ScrollCellIntoView(arguments[0], (DataGridColumn)arguments[1]);
+                if (arguments[0] != null)
+                {
+                    ScrollCellIntoView(arguments[0], (DataGridColumn)arguments[1]);
+                }
+                else
+                {
+                    ScrollColumnIntoView((DataGridColumn)arguments[1]);
+                }
             }
             else
             {
@@ -1197,6 +1576,19 @@ namespace Microsoft.Windows.Controls
             }
 
             return null;
+        }
+
+        private void ScrollColumnIntoView(DataGridColumn column)
+        {
+            if (_rowTrackingRoot != null)
+            {
+                DataGridRow row = _rowTrackingRoot.Container;
+                if (row != null)
+                {
+                    int columnIndex = _columns.IndexOf(column);
+                    row.ScrollCellIntoView(columnIndex);
+                }
+            }
         }
 
         // TODO: Consider making a protected virtual so that sub-classes can customize the behavior
@@ -1216,7 +1608,6 @@ namespace Microsoft.Windows.Controls
                     // It would be convenient for ItemsHost to be public, but since it is not,
                     // we are relying on some internal communication between DataGridRowsPresenter
                     // and the DataGrid.
-
                     DataGridRowsPresenter itemsHost = InternalItemsHost as DataGridRowsPresenter;
                     if (itemsHost != null)
                     {
@@ -1235,29 +1626,26 @@ namespace Microsoft.Windows.Controls
             Debug.Assert(item != null, "item is null.");
             Debug.Assert(column != null, "column is null.");
 
-            if (!TryScrollCellIntoView(item, column))
+            if (!column.IsVisible)
             {
-                // The cell is probably virtualized, try to scroll the row first
-                // and then hopefully the cell will exist.
+                return;
+            }
+
+            // Devirtualize the concerned row if it is not already
+            DataGridRow row = ItemContainerGenerator.ContainerFromItem(item) as DataGridRow;
+            if (row == null)
+            {
                 ScrollRowIntoView(item);
                 UpdateLayout();
-                TryScrollCellIntoView(item, column);
+                row = ItemContainerGenerator.ContainerFromItem(item) as DataGridRow;
             }
-        }
 
-        private bool TryScrollCellIntoView(object item, DataGridColumn column)
-        {
-            DataGridCell cell = TryFindCell(item, column);
-            if (cell != null)
+            // Use the row to scroll cell into view.
+            if (row != null)
             {
-                cell.BringIntoView();
-
-                // The cell was found and BringIntoView was called
-                return true;
+                int columnIndex = _columns.IndexOf(column);
+                row.ScrollCellIntoView(columnIndex);
             }
-
-            // The cell was not found, nothing happened
-            return false;
         }
 
         /// <summary>
@@ -1281,8 +1669,7 @@ namespace Microsoft.Windows.Controls
                 // NOTE: NtUser does the following (file: windows/ntuser/kernel/sysmet.c)
                 //     gpsi->dtLBSearch = dtTime * 4;          // dtLBSearch   = 4   * gdtDblClk
                 //     gpsi->dtScroll = gpsi->dtLBSearch / 5;  // dtScroll     = 4/5 * gdtDblClk
-
-                return TimeSpan.FromMilliseconds(GetDoubleClickTime() * 0.8);
+                return TimeSpan.FromMilliseconds(NativeMethods.GetDoubleClickTime() * 0.8);
             }
         }
 
@@ -1294,6 +1681,7 @@ namespace Microsoft.Windows.Controls
             if (_autoScrollTimer == null)
             {
                 _hasAutoScrolled = false;
+
                 // Same priority as ListBox. Currently choosing SystemIdle over ApplicationIdle since the layout
                 // manger will do some work (sometimes) at ApplicationIdle.
                 _autoScrollTimer = new DispatcherTimer(DispatcherPriority.SystemIdle);
@@ -1361,7 +1749,6 @@ namespace Microsoft.Windows.Controls
                         {
                             column = ColumnFromDisplayIndex(columnIndex - 1);
                         }
-
                     }
                     else if (IsMouseToRight(position))
                     {
@@ -1397,7 +1784,7 @@ namespace Microsoft.Windows.Controls
                         if (row != null)
                         {
                             _hasAutoScrolled = true;
-                            HandleSelectionForRowHeaderInput(row, /* startDragging = */ false);
+                            HandleSelectionForRowHeaderAndDetailsInput(row, /* startDragging = */ false);
                             CurrentItem = dataItem;
                             return true;
                         }
@@ -1435,7 +1822,17 @@ namespace Microsoft.Windows.Controls
         internal Panel InternalItemsHost
         {
             get { return _internalItemsHost; }
-            set { _internalItemsHost = value; }
+            set
+            {
+                if (_internalItemsHost != value)
+                {
+                    _internalItemsHost = value;
+                    if (_internalItemsHost != null)
+                    {
+                        EnsureInternalScrollControls();
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -1445,12 +1842,159 @@ namespace Microsoft.Windows.Controls
         {
             get
             {
-                if (_internalScrollHost == null && _internalItemsHost != null)
+                EnsureInternalScrollControls();
+                return _internalScrollHost;
+            }
+        }
+
+        /// <summary>
+        ///     Workaround for not having access to ScrollContentPresenter
+        /// </summary>
+        internal ScrollContentPresenter InternalScrollContentPresenter
+        {
+            get
+            {
+                EnsureInternalScrollControls();
+                return _internalScrollContentPresenter;
+            }
+        }
+
+        /// <summary>
+        ///     Helper method which ensures the initialization of scroll controls.
+        /// </summary>
+        private void EnsureInternalScrollControls()
+        {
+            if (_internalScrollContentPresenter == null)
+            {
+                if (_internalItemsHost != null)
+                {
+                    _internalScrollContentPresenter = DataGridHelper.FindVisualParent<ScrollContentPresenter>(_internalItemsHost);
+                }
+                else if (_rowTrackingRoot != null)
+                {
+                    DataGridRow row = _rowTrackingRoot.Container;
+                    _internalScrollContentPresenter = DataGridHelper.FindVisualParent<ScrollContentPresenter>(row);
+                }
+                if (_internalScrollContentPresenter != null)
+                {
+                    _internalScrollContentPresenter.SizeChanged += new SizeChangedEventHandler(OnInternalScrollContentPresenterSizeChanged);
+                }
+            }
+
+            if (_internalScrollHost == null)
+            {
+                if (_internalItemsHost != null)
                 {
                     _internalScrollHost = DataGridHelper.FindVisualParent<ScrollViewer>(_internalItemsHost);
                 }
+                else if (_rowTrackingRoot != null)
+                {
+                    DataGridRow row = _rowTrackingRoot.Container;
+                    _internalScrollHost = DataGridHelper.FindVisualParent<ScrollViewer>(row);
+                }
+                if (_internalScrollHost != null)
+                {
+                    Binding horizontalOffsetBinding = new Binding("ContentHorizontalOffset");
+                    horizontalOffsetBinding.Source = _internalScrollHost;
+                    SetBinding(HorizontalScrollOffsetProperty, horizontalOffsetBinding);
+                }
+            }
+        }
 
-                return _internalScrollHost;
+        /// <summary>
+        ///     Helper method which cleans up the internal scroll controls.
+        /// </summary>
+        private void CleanUpInternalScrollControls()
+        {
+            BindingOperations.ClearBinding(this, HorizontalScrollOffsetProperty);
+            _internalScrollHost = null;
+            if (_internalScrollContentPresenter != null)
+            {
+                _internalScrollContentPresenter.SizeChanged -= new SizeChangedEventHandler(OnInternalScrollContentPresenterSizeChanged);
+                _internalScrollContentPresenter = null;
+            }
+        }
+
+        /// <summary>
+        ///     Size changed handler for InteralScrollContentPresenter.
+        /// </summary>
+        private void OnInternalScrollContentPresenterSizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (_internalScrollContentPresenter != null &&
+                !_internalScrollContentPresenter.CanContentScroll)
+            {
+                OnViewportSizeChanged(e.PreviousSize, e.NewSize);
+            }
+        }
+
+        /// <summary>
+        ///     Helper method which enqueues a viewport width change 
+        ///     request to Dispatcher if needed.
+        /// </summary>
+        internal void OnViewportSizeChanged(Size oldSize, Size newSize)
+        {
+            if (!InternalColumns.ColumnWidthsComputationPending)
+            {
+                double widthChange = newSize.Width - oldSize.Width;
+                if (!DoubleUtil.AreClose(widthChange, 0.0))
+                {
+                    _finalViewportWidth = newSize.Width;
+                    if (!_viewportWidthChangeNotificationPending)
+                    {
+                        _originalViewportWidth = oldSize.Width;
+                        Dispatcher.BeginInvoke(new DispatcherOperationCallback(OnDelayedViewportWidthChanged), DispatcherPriority.Loaded, this);
+                        _viewportWidthChangeNotificationPending = true;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        ///     Dispatcher callback method for Viewport width change
+        ///     which propagates the notification if needed.
+        /// </summary>
+        private object OnDelayedViewportWidthChanged(object args)
+        {
+            if (!_viewportWidthChangeNotificationPending)
+            {
+                return null;
+            }
+
+            double widthChange = _finalViewportWidth - _originalViewportWidth;
+            if (!DoubleUtil.AreClose(widthChange, 0.0))
+            {
+                NotifyPropertyChanged(this, 
+                    "ViewportWidth", 
+                    new DependencyPropertyChangedEventArgs(), 
+                    NotificationTarget.CellsPresenter | NotificationTarget.ColumnHeadersPresenter | NotificationTarget.ColumnCollection);
+
+                double totalAvailableWidth = _finalViewportWidth;
+                totalAvailableWidth -= CellsPanelHorizontalOffset;
+                InternalColumns.RedistributeColumnWidthsOnAvailableSpaceChange(widthChange, totalAvailableWidth);
+            }
+            _viewportWidthChangeNotificationPending = false;
+            return null;
+        }
+
+        /// <summary>
+        ///     Dependency property which would be bound to ContentHorizontalOffset
+        ///     property of the ScrollViewer.
+        /// </summary>
+        internal static readonly DependencyProperty HorizontalScrollOffsetProperty =
+            DependencyProperty.Register(
+                "HorizontalScrollOffset",
+                typeof(double),
+                typeof(DataGrid),
+                new FrameworkPropertyMetadata(0d, OnNotifyHorizontalOffsetPropertyChanged));
+
+        /// <summary>
+        ///     The HorizontalOffset of the scroll viewer
+        /// </summary>
+        internal double HorizontalScrollOffset
+        {
+            get
+            {
+                return (double)GetValue(HorizontalScrollOffsetProperty);
             }
         }
 
@@ -1497,7 +2041,26 @@ namespace Microsoft.Windows.Controls
         /// </summary>
         protected virtual void OnCanExecuteBeginEdit(CanExecuteRoutedEventArgs e)
         {
-            e.CanExecute = !IsReadOnly && (CurrentCellContainer != null) && !IsEditingCurrentCell && !IsCurrentCellReadOnly;
+            bool canExecute = !IsReadOnly && (CurrentCellContainer != null) && !IsEditingCurrentCell && !IsCurrentCellReadOnly && !HasCellValidationError;
+
+            if (canExecute && HasRowValidationError)
+            {
+                DataGridCell cellContainer = GetEventCellOrCurrentCell(e);
+                if (cellContainer != null)
+                {
+                    object rowItem = cellContainer.RowDataItem;
+
+                    // When there is a validation error, only allow editing on that row
+                    canExecute = IsAddingOrEditingRowItem(rowItem);
+                }
+                else
+                {
+                    // Don't allow entering edit mode when there is a pending validation error
+                    canExecute = false;
+                }
+            }
+
+            e.CanExecute = canExecute;
             e.Handled = true;
         }
 
@@ -1520,7 +2083,6 @@ namespace Microsoft.Windows.Controls
                 if (IsNewItemPlaceholder(cell.RowDataItem))
                 {
                     // If editing the new item placeholder, then create a new item and edit that instead.
-
                     if (SelectedItems.Contains(CollectionView.NewItemPlaceholder))
                     {
                         // Unselect the NewItemPlaceholder and select the new row
@@ -1538,6 +2100,17 @@ namespace Microsoft.Windows.Controls
                     newItem = AddNewItem();
                     CurrentItem = newItem; // Puts focus on the added row
                     cell = CurrentCellContainer;
+                    if (CurrentCellContainer == null)
+                    {
+                        // CurrentCellContainer becomes null if focus moves out of the datagrid
+                        // Calling UpdateLayout instantiates the CurrentCellContainer
+                        UpdateLayout();
+                        cell = CurrentCellContainer;
+                        if ((cell != null) && !cell.IsKeyboardFocusWithin)
+                        {
+                            cell.Focus();
+                        }
+                    }
 
                     if (deselectedPlaceholder)
                     {
@@ -1570,13 +2143,18 @@ namespace Microsoft.Windows.Controls
                 }
 
                 RoutedEventArgs editingEventArgs = e.Parameter as RoutedEventArgs;
+                DataGridBeginningEditEventArgs beginningEditEventArgs = null;
 
-                // Give the callback an opportunity to cancel edit mode
-                DataGridBeginningEditEventArgs beginningEditEventArgs = new DataGridBeginningEditEventArgs(cell.Column, cell.RowOwner, editingEventArgs);
-                OnBeginningEdit(beginningEditEventArgs);
-
-                if (beginningEditEventArgs.Cancel)
+                if (cell != null)
                 {
+                    // Give the callback an opportunity to cancel edit mode
+                    beginningEditEventArgs = new DataGridBeginningEditEventArgs(cell.Column, cell.RowOwner, editingEventArgs);
+                    OnBeginningEdit(beginningEditEventArgs);
+                }
+
+                if ((cell == null) || beginningEditEventArgs.Cancel)
+                {
+                    // If CurrentCellContainer is null then cancel editing
                     if (deselectedPlaceholder)
                     {
                         // If the new item placeholder was deselected and the new item was selected,
@@ -1621,6 +2199,15 @@ namespace Microsoft.Windows.Controls
                     if (!addedPlaceholder && !IsEditingRowItem)
                     {
                         EditRowItem(cell.RowDataItem);
+                        
+                        var bindingGroup = cell.RowOwner.BindingGroup;
+                        if (bindingGroup != null)
+                        {
+                            bindingGroup.BeginEdit();
+                        }
+
+                        _editingRowItem = cell.RowDataItem;
+                        _editingRowIndex = Items.IndexOf(_editingRowItem);
                     }
 
                     cell.BeginEdit(editingEventArgs);
@@ -1644,11 +2231,16 @@ namespace Microsoft.Windows.Controls
             ((DataGrid)sender).OnExecutedCommitEdit(e);
         }
 
-        private bool CanEndEdit(CanExecuteRoutedEventArgs e, bool commit)
+        private DataGridCell GetEventCellOrCurrentCell(RoutedEventArgs e)
         {
             // If the command routed through a cell, then use that cell. Otherwise, use the current cell.
             UIElement source = e.OriginalSource as UIElement;
-            DataGridCell cellContainer = ((source == this) || (source == null)) ? CurrentCellContainer : DataGridHelper.FindVisualParent<DataGridCell>(source);
+            return ((source == this) || (source == null)) ? CurrentCellContainer : DataGridHelper.FindVisualParent<DataGridCell>(source);
+        }
+
+        private bool CanEndEdit(CanExecuteRoutedEventArgs e, bool commit)
+        {
+            DataGridCell cellContainer = GetEventCellOrCurrentCell(e);
             if (cellContainer == null)
             {
                 // If there is no cell, then nothing can be determined. So, no edit could end.
@@ -1664,10 +2256,11 @@ namespace Microsoft.Windows.Controls
             // - OR If the editing unit is row AND one of:
             //   - There is a pending add OR
             //   - There is a pending edit
-            return (cellContainer.IsEditing || 
+            return cellContainer.IsEditing || 
                    ((editingUnit == DataGridEditingUnit.Row) && 
-                     ((editableItems.IsAddingNew && (editableItems.CurrentAddItem == rowItem)) || 
-                      (editableItems.IsEditingItem && (commit || editableItems.CanCancelEdit) && (editableItems.CurrentEditItem == rowItem)))));
+                   !HasCellValidationError && 
+                   ((editableItems.IsAddingNew && (editableItems.CurrentAddItem == rowItem)) || 
+                   (editableItems.IsEditingItem && (commit || editableItems.CanCancelEdit || HasRowValidationError) && (editableItems.CurrentEditItem == rowItem))));
         }
 
         /// <summary>
@@ -1685,6 +2278,7 @@ namespace Microsoft.Windows.Controls
         protected virtual void OnExecutedCommitEdit(ExecutedRoutedEventArgs e)
         {
             DataGridCell cell = CurrentCellContainer;
+            bool validationPassed = true;
             if (cell != null)
             {
                 DataGridEditingUnit editingUnit = GetEditingUnit(e.Parameter);
@@ -1692,35 +2286,74 @@ namespace Microsoft.Windows.Controls
                 bool eventCanceled = false;
                 if (cell.IsEditing)
                 {
-                    DataGridEndingEditEventArgs endingEditEventArgs = new DataGridEndingEditEventArgs(cell.Column, cell.RowOwner, cell.EditingElement, DataGridEditingUnit.Cell);
-                    OnCommittingEdit(endingEditEventArgs);
+                    DataGridCellEditEndingEventArgs cellEditEndingEventArgs = new DataGridCellEditEndingEventArgs(cell.Column, cell.RowOwner, cell.EditingElement, DataGridEditAction.Commit);
+                    OnCellEditEnding(cellEditEndingEventArgs);
 
-                    eventCanceled = endingEditEventArgs.Cancel;
+                    eventCanceled = cellEditEndingEventArgs.Cancel;
                     if (!eventCanceled)
                     {
-                        cell.CommitEdit();
+                        validationPassed = cell.CommitEdit();
+                        HasCellValidationError = !validationPassed;
                     }
                 }
 
-                if (!eventCanceled && (editingUnit == DataGridEditingUnit.Row) && IsAddingOrEditingRowItem(cell.RowDataItem))
+                // Consider commiting the row if:
+                // 1. Validation passed on the cell or no cell was in edit mode.
+                // 2. A cell in edit mode didn't have it's ending edit event canceled.
+                // 3. The row can be commited:
+                //    a. The row is being edited or added and being targeted directly.
+                //    b. If the row is being edited (not added), but it doesn't support
+                //       pending changes, then tell the row to commit (this doesn't really
+                //       do anything except update the IEditableCollectionView state)
+                if (validationPassed && 
+                    !eventCanceled &&
+                    (((editingUnit == DataGridEditingUnit.Row) && IsAddingOrEditingRowItem(cell.RowDataItem)) ||
+                     (!EditableItems.CanCancelEdit && IsEditingItem(cell.RowDataItem))))
                 {
-                    DataGridEndingEditEventArgs endingEditEventArgs = new DataGridEndingEditEventArgs(null, cell.RowOwner, null, DataGridEditingUnit.Row);
-                    OnCommittingEdit(endingEditEventArgs);
+                    DataGridRowEditEndingEventArgs rowEditEndingEventArgs = new DataGridRowEditEndingEventArgs(cell.RowOwner, DataGridEditAction.Commit);
+                    OnRowEditEnding(rowEditEndingEventArgs);
 
-                    if (!endingEditEventArgs.Cancel)
-                    {
-                        CommitRowItem();
+                    if (!rowEditEndingEventArgs.Cancel)
+                    {                        
+                        var bindingGroup = cell.RowOwner.BindingGroup;
+                        if (bindingGroup != null)
+                        {
+                            // CommitEdit will invoke the bindingGroup's ValidationRule's, so we need to make sure that all of the BindingExpressions
+                            // have already registered with the BindingGroup.  Synchronously flushing the Dispatcher to DataBind priority lets us ensure this.
+                            // Had we used BeginInvoke instead, IsEditing would not reflect the correct value.
+                            Dispatcher.Invoke(new DispatcherOperationCallback(DoNothing), DispatcherPriority.DataBind, bindingGroup);
+                            validationPassed = bindingGroup.CommitEdit();
+                        }
+
+                        HasRowValidationError = !validationPassed;
+                        if (validationPassed)
+                        {
+                            CommitRowItem();
+                        }
                     }
                 }
 
-                // Update the state of row editing
-                UpdateRowEditing(cell);
+                if (validationPassed)
+                {
+                    // Update the state of row editing
+                    UpdateRowEditing(cell);
+                }
 
                 // CancelEdit and CommitEdit rely on IsAddingNewItem and IsEditingRowItem
                 CommandManager.InvalidateRequerySuggested();
             }
 
             e.Handled = true;
+        }
+
+        /// <summary>
+        /// This is a helper method used to flush the dispatcher down to DataBind priority so that the bindingGroup will be ready for CommitEdit.
+        /// </summary>
+        /// <param name="arg"></param>
+        /// <returns></returns>
+        private static object DoNothing(object arg)
+        {
+            return null;
         }
 
         private DataGridEditingUnit GetEditingUnit(object parameter)
@@ -1733,20 +2366,56 @@ namespace Microsoft.Windows.Controls
         }
 
         /// <summary>
-        ///     Raised just before editing is committed.
+        ///     Raised just before row editing is ended.
         ///     Gives handlers the opportunity to cancel the operation.
         /// </summary>
-        public event EventHandler<DataGridEndingEditEventArgs> CommittingEdit;
+        public event EventHandler<DataGridRowEditEndingEventArgs> RowEditEnding;
 
         /// <summary>
-        ///     Called just before editing is committed.
+        ///     Called just before row editing is ended.
         ///     Gives subclasses the opportunity to cancel the operation.
         /// </summary>
-        protected virtual void OnCommittingEdit(DataGridEndingEditEventArgs e)
+        protected virtual void OnRowEditEnding(DataGridRowEditEndingEventArgs e)
         {
-            if (CommittingEdit != null)
+            if (RowEditEnding != null)
             {
-                CommittingEdit(this, e);
+                RowEditEnding(this, e);
+            }
+
+            if (AutomationPeer.ListenerExists(AutomationEvents.InvokePatternOnInvoked))
+            {
+                DataGridAutomationPeer peer = DataGridAutomationPeer.FromElement(this) as DataGridAutomationPeer;
+                if (peer != null)
+                {
+                    peer.RaiseAutomationRowInvokeEvents(e.Row);
+                }
+            }
+        }
+
+        /// <summary>
+        ///     Raised just before cell editing is ended.
+        ///     Gives handlers the opportunity to cancel the operation.
+        /// </summary>
+        public event EventHandler<DataGridCellEditEndingEventArgs> CellEditEnding;
+
+        /// <summary>
+        ///     Called just before cell editing is ended.
+        ///     Gives subclasses the opportunity to cancel the operation.
+        /// </summary>
+        protected virtual void OnCellEditEnding(DataGridCellEditEndingEventArgs e)
+        {
+            if (CellEditEnding != null)
+            {
+                CellEditEnding(this, e);
+            }
+
+            if (AutomationPeer.ListenerExists(AutomationEvents.InvokePatternOnInvoked))
+            {
+                DataGridAutomationPeer peer = DataGridAutomationPeer.FromElement(this) as DataGridAutomationPeer;
+                if (peer != null)
+                {
+                    peer.RaiseAutomationCellInvokeEvents(e.Column, e.Row);
+                }
             }
         }
 
@@ -1782,53 +2451,74 @@ namespace Microsoft.Windows.Controls
                 bool eventCanceled = false;
                 if (cell.IsEditing)
                 {
-                    DataGridEndingEditEventArgs endingEditEventArgs = new DataGridEndingEditEventArgs(cell.Column, cell.RowOwner, cell.EditingElement, DataGridEditingUnit.Cell);
-                    OnCancelingEdit(endingEditEventArgs);
+                    DataGridCellEditEndingEventArgs cellEditEndingEventArgs = new DataGridCellEditEndingEventArgs(cell.Column, cell.RowOwner, cell.EditingElement, DataGridEditAction.Cancel);
+                    OnCellEditEnding(cellEditEndingEventArgs);
 
-                    eventCanceled = endingEditEventArgs.Cancel;
+                    eventCanceled = cellEditEndingEventArgs.Cancel;
                     if (!eventCanceled)
                     {
                         cell.CancelEdit();
+                        HasCellValidationError = false;
                     }
                 }
 
-                if (!eventCanceled && CanCancelAddingOrEditingRowItem(editingUnit, cell.RowDataItem))
+                var editableItems = EditableItems;
+                bool needsCommit = IsEditingItem(cell.RowDataItem) && !editableItems.CanCancelEdit;
+                if (!eventCanceled && 
+                    (CanCancelAddingOrEditingRowItem(editingUnit, cell.RowDataItem) || needsCommit))
                 {
-                    DataGridEndingEditEventArgs endingEditEventArgs = new DataGridEndingEditEventArgs(null, cell.RowOwner, null, DataGridEditingUnit.Row);
-                    OnCancelingEdit(endingEditEventArgs);
+                    bool cancelAllowed = true;
 
-                    if (!endingEditEventArgs.Cancel)
+                    if (!needsCommit)
                     {
-                        CancelRowItem();
+                        DataGridRowEditEndingEventArgs rowEditEndingEventArgs = new DataGridRowEditEndingEventArgs(cell.RowOwner, DataGridEditAction.Cancel);
+                        OnRowEditEnding(rowEditEndingEventArgs);
+                        cancelAllowed = !rowEditEndingEventArgs.Cancel;
+                    }
+
+                    if (cancelAllowed)
+                    {
+                        if (needsCommit)
+                        {
+                            // If the row is being edited (not added), but it doesn't support
+                            // pending changes, then tell the item to commit (this doesn't really
+                            // do anything except update the IEditableCollectionView state).
+                            // This allows us to exit row editing mode.
+                            editableItems.CommitEdit();
+                        }
+                        else
+                        {
+                            CancelRowItem();
+                        }
+
+                        var bindingGroup = cell.RowOwner.BindingGroup;
+                        if (bindingGroup != null)
+                        {
+                            bindingGroup.CancelEdit();
+
+                            // This is to workaround the bug that BindingGroup 
+                            // does nor clear errors on CancelEdit
+                            bindingGroup.UpdateSources();
+                        }
                     }
                 }
 
                 // Update the state of row editing
                 UpdateRowEditing(cell);
 
+                if (!cell.RowOwner.IsEditing)
+                {
+                    // Allow the user to cancel the row and avoid being locked to that row.
+                    // If the row is still not valid, it means that the source data is already
+                    // invalid, and that is OK.
+                    HasRowValidationError = false;
+                }
+
                 // CancelEdit and CommitEdit rely on IsAddingNewItem and IsEditingRowItem
                 CommandManager.InvalidateRequerySuggested();
             }
 
             e.Handled = true;
-        }
-
-        /// <summary>
-        ///     Raised just before editing is canceled.
-        ///     Gives handlers the opportunity to cancel the operation.
-        /// </summary>
-        public event EventHandler<DataGridEndingEditEventArgs> CancelingEdit;
-
-        /// <summary>
-        ///     Called just before editing is canceled.
-        ///     Gives subclasses the opportunity to cancel the operation.
-        /// </summary>
-        protected virtual void OnCancelingEdit(DataGridEndingEditEventArgs e)
-        {
-            if (CancelingEdit != null)
-            {
-                CancelingEdit(this, e);
-            }
         }
 
         private static void OnCanExecuteDelete(object sender, CanExecuteRoutedEventArgs e)
@@ -1885,7 +2575,9 @@ namespace Microsoft.Windows.Controls
                     int numSelected = SelectedItems.Count;
                     int indexToSelect = -1;
                     object currentItem = CurrentItem;
-                    if (SelectedItems.Contains(currentItem)) // The current item is in the selection
+
+                    // The current item is in the selection
+                    if (SelectedItems.Contains(currentItem)) 
                     {
                         // Choose the smaller index between the anchor and the current item
                         // as the index to select after the items are removed.
@@ -1898,6 +2590,7 @@ namespace Microsoft.Windows.Controls
                                 indexToSelect = anchorIndex;
                             }
                         }
+
                         indexToSelect = Math.Min(Items.Count - numSelected - 1, indexToSelect);
                     }
 
@@ -1916,6 +2609,7 @@ namespace Microsoft.Windows.Controls
                         {
                             BeginUpdateSelectedItems();
                         }
+
                         try
                         {
                             // Pre-emptively clear the selection lists
@@ -1972,14 +2666,10 @@ namespace Microsoft.Windows.Controls
 
         #region Editing
 
-        //
-        // TODO: IsReadOnly is not complete, which is why it is currently internal.
-        //
-
         /// <summary>
         ///     Whether the DataGrid's rows and cells can be placed in edit mode.
         /// </summary>
-        internal bool IsReadOnly
+        public bool IsReadOnly
         {
             get { return (bool)GetValue(IsReadOnlyProperty); }
             set { SetValue(IsReadOnlyProperty, value); }
@@ -1988,7 +2678,7 @@ namespace Microsoft.Windows.Controls
         /// <summary>
         ///     The DependencyProperty for IsReadOnly.
         /// </summary>
-        internal static readonly DependencyProperty IsReadOnlyProperty =
+        public static readonly DependencyProperty IsReadOnlyProperty =
             DependencyProperty.Register("IsReadOnly", typeof(bool), typeof(DataGrid), new FrameworkPropertyMetadata(false, new PropertyChangedCallback(OnIsReadOnlyChanged)));
 
         private static void OnIsReadOnlyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -1998,6 +2688,9 @@ namespace Microsoft.Windows.Controls
                 // When going from R/W to R/O, cancel any current edits
                 ((DataGrid)d).CancelAnyEdit();
             }
+
+            // re-evalutate the BeginEdit command's CanExecute.
+            CommandManager.InvalidateRequerySuggested();
 
             d.CoerceValue(CanUserAddRowsProperty);
             d.CoerceValue(CanUserDeleteRowsProperty);
@@ -2098,6 +2791,7 @@ namespace Microsoft.Windows.Controls
             {
                 dataGrid.CurrentItem = currentCell.Item;
             }
+
             if (dataGrid.CurrentColumn != currentCell.Column)
             {
                 dataGrid.CurrentColumn = currentCell.Column;
@@ -2108,7 +2802,6 @@ namespace Microsoft.Windows.Controls
                 // _currentCellContainer should still be the old container and not the new one.
                 // If _currentCellContainer were null, then it should mean that no BeginEdit was called
                 // so, we shouldn't be missing any EndEdits.
-
                 if ((dataGrid.IsAddingNewItem || dataGrid.IsEditingRowItem) && (oldCell.Item != currentCell.Item))
                 {
                     // There is a row edit pending and the current cell changed to another row.
@@ -2140,6 +2833,7 @@ namespace Microsoft.Windows.Controls
                         cell = dataGrid.CurrentCellContainer;
                     }
                 }
+
                 if ((cell != null) && !cell.IsKeyboardFocusWithin)
                 {
                     cell.Focus();
@@ -2275,6 +2969,15 @@ namespace Microsoft.Windows.Controls
             {
                 BeginningEdit(this, e);
             }
+
+            if (AutomationPeer.ListenerExists(AutomationEvents.InvokePatternOnInvoked))
+            {
+                DataGridAutomationPeer peer = DataGridAutomationPeer.FromElement(this) as DataGridAutomationPeer;
+                if (peer != null)
+                {
+                    peer.RaiseAutomationCellInvokeEvents(e.Column, e.Row);
+                }
+            }
         }
 
         /// <summary>
@@ -2365,6 +3068,22 @@ namespace Microsoft.Windows.Controls
 
         /// <summary>
         ///     Raises the CancelEdit command.
+        ///     If a cell is currently in edit mode, cancels the cell edit, but leaves any row edits alone.
+        /// </summary>
+        /// <returns>true if the cell exits edit mode, false otherwise.</returns>
+        internal bool CancelEdit(DataGridCell cell)
+        {
+            DataGridCell currentCell = CurrentCellContainer;
+            if (currentCell != null && currentCell == cell && currentCell.IsEditing)
+            {
+                return CancelEdit(DataGridEditingUnit.Cell);
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        ///     Raises the CancelEdit command.
         ///     Reverts any pending editing changes to the desired editing unit and exits edit mode.
         /// </summary>
         /// <param name="editingUnit">Whether to cancel edit mode of the current cell or current row.</param>
@@ -2422,18 +3141,20 @@ namespace Microsoft.Windows.Controls
             return EndEdit(CommitEditCommand, CurrentCellContainer, editingUnit, exitEditingMode);
         }
 
-        private void CommitAnyEdit()
+        private bool CommitAnyEdit()
         {
             if (IsAddingNewItem || IsEditingRowItem)
             {
                 // There is a row edit in progress, commit it, which will also commit the cell edit.
-                CommitEdit(DataGridEditingUnit.Row, /* exitEditingMode = */ true);
+                return CommitEdit(DataGridEditingUnit.Row, /* exitEditingMode = */ true);
             }
             else if (IsEditingCurrentCell)
             {
                 // Commit the current cell edit.
-                CommitEdit(DataGridEditingUnit.Cell, /* exitEditingMode = */ true);
+                return CommitEdit(DataGridEditingUnit.Cell, /* exitEditingMode = */ true);
             }
+
+            return true;
         }
 
         private bool EndEdit(RoutedCommand command, DataGridCell cellContainer, DataGridEditingUnit editingUnit, bool exitEditMode)
@@ -2487,6 +3208,44 @@ namespace Microsoft.Windows.Controls
             }
 
             return cellLeftEditingMode && ((editingUnit == DataGridEditingUnit.Cell) || rowLeftEditingMode);
+        }
+
+        private bool HasCellValidationError
+        {
+            get
+            {
+                return _hasCellValidationError;
+            }
+
+            set
+            {
+                if (_hasCellValidationError != value)
+                {
+                    _hasCellValidationError = value;
+
+                    // BeginEdit's CanExecute status relies on this flag
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        private bool HasRowValidationError
+        {
+            get
+            {
+                return _hasRowValidationError;
+            }
+
+            set
+            {
+                if (_hasRowValidationError != value)
+                {
+                    _hasRowValidationError = value;
+
+                    // BeginEdit's CanExecute status relies on this flag
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
         }
 
         #endregion
@@ -2622,8 +3381,18 @@ namespace Microsoft.Windows.Controls
 
         private void CommitRowItem()
         {
-            Debug.Assert(IsEditingRowItem || IsAddingNewItem, "CommitRowItem was called when a row was not being edited or added.");
+            // This case illustrates a minor side-effect of communicating with IEditableObject through two different means
+            // - BindingGroup
+            // - IEditableCollectionView
+            // The sequence of operations is as below.
+            // IEditableCollectionView.BeginEdit
+            // BindingGroup.BeginEdit
+            // BindingGroup.CommitEdit
+            // IEditableCollectionView.CommitEdit
+            // After having commited the NewItem row the first time it is possible that the IsAddingNewItem is false 
+            // during the second call to CommitEdit. Hence we cannot quite make this assertion here.
 
+            // Debug.Assert(IsEditingRowItem || IsAddingNewItem, "CommitRowItem was called when a row was not being edited or added.");
             if (IsEditingRowItem)
             {
                 EditableItems.CommitEdit();
@@ -2639,8 +3408,18 @@ namespace Microsoft.Windows.Controls
 
         private void CancelRowItem()
         {
-            Debug.Assert(IsEditingRowItem || IsAddingNewItem, "CancelRowItem was called when a row was not being edited or added.");
+            // This case illustrates a minor side-effect of communicating with IEditableObject through two different means
+            // - BindingGroup
+            // - IEditableCollectionView
+            // The sequence of operations is as below.
+            // IEditableCollectionView.BeginEdit
+            // BindingGroup.BeginEdit
+            // IEditableCollectionView.CancelEdit
+            // BindingGroup.CancelEdit
+            // After having cancelled the NewItem row the first time it is possible that the IsAddingNewItem is false 
+            // during the second call to CancelEdit. Hence we cannot quite make this assertion here.
 
+            // Debug.Assert(IsEditingRowItem || IsAddingNewItem, "CancelRowItem was called when a row was not being edited or added.");
             if (IsEditingRowItem)
             {
                 EditableItems.CancelEdit();
@@ -2711,21 +3490,14 @@ namespace Microsoft.Windows.Controls
 
         private void UpdateRowEditing(DataGridCell cell)
         {
-            var editableItems = EditableItems;
             object rowDataItem = cell.RowDataItem;
-
-            if (IsEditingItem(rowDataItem) && !editableItems.CanCancelEdit)
-            {
-                // If the row is being edited (not added), but it doesn't support
-                // pending changes, then tell the item to commit (this doesn't really
-                // do anything except update the IEditableCollectionView state).
-                editableItems.CommitEdit();
-            }
 
             // If the row is not in edit/add mode, then clear its IsEditing flag.
             if (!IsAddingOrEditingRowItem(rowDataItem))
             {
                 cell.RowOwner.IsEditing = false;
+                _editingRowItem = null;
+                _editingRowIndex = -1;
             }
         }
 
@@ -2752,9 +3524,9 @@ namespace Microsoft.Windows.Controls
 
         private bool CanCancelAddingOrEditingRowItem(DataGridEditingUnit editingUnit, object item)
         {
-            return ((editingUnit == DataGridEditingUnit.Row) &&
-                    ((IsEditingItem(item) && EditableItems.CanCancelEdit) ||
-                     (IsAddingNewItem && (EditableItems.CurrentAddItem == item))));
+            return (editingUnit == DataGridEditingUnit.Row) &&
+                   ((IsEditingItem(item) && EditableItems.CanCancelEdit) ||
+                   (IsAddingNewItem && (EditableItems.CurrentAddItem == item)));
         }
 
         private bool IsEditingItem(object item)
@@ -2764,50 +3536,50 @@ namespace Microsoft.Windows.Controls
 
         private void UpdateNewItemPlaceholder(bool isAddingNewItem)
         {
-            var newItemPlaceholderRow = (DataGridRow)ItemContainerGenerator.ContainerFromItem(CollectionView.NewItemPlaceholder);
             var editableItems = EditableItems;
             bool canUserAddRows = CanUserAddRows;
-            bool hasNewItemPlaceholdRow = newItemPlaceholderRow != null;
+
+            if (DataGridHelper.IsDefaultValue(this, CanUserAddRowsProperty))
+            {
+                canUserAddRows = OnCoerceCanUserAddOrDeleteRows(this, canUserAddRows, true);
+            }
 
             if (!isAddingNewItem)
             {
-                //
-                // NewItemPlaceholderPosition isn't a DP but we want to default to AtEnd instead of None (can only be done
-                // when canUserAddRows becomes true).  This may override the users intent to make it None, however
-                // they can work around this by resetting it to None after making a change which results in canUserAddRows
-                // becoming true.
-                //
-                if (canUserAddRows &&
-                    editableItems != null &&
-                    editableItems.NewItemPlaceholderPosition == NewItemPlaceholderPosition.None)
+                if (canUserAddRows)
                 {
-                    editableItems.NewItemPlaceholderPosition = NewItemPlaceholderPosition.AtEnd;
-                }
+                    // NewItemPlaceholderPosition isn't a DP but we want to default to AtEnd instead of None (can only be done
+                    // when canUserAddRows becomes true).  This may override the users intent to make it None, however
+                    // they can work around this by resetting it to None after making a change which results in canUserAddRows
+                    // becoming true.
+                    if (editableItems.NewItemPlaceholderPosition == NewItemPlaceholderPosition.None)
+                    {
+                        editableItems.NewItemPlaceholderPosition = NewItemPlaceholderPosition.AtEnd;
+                    }
 
-                // Use the previous visibility
-                if (hasNewItemPlaceholdRow)
-                {
-                    newItemPlaceholderRow.Visibility = _previousPlaceholderVisibility;
+                    _placeholderVisibility = Visibility.Visible;
                 }
-                
-                _placeholderVisibility = _previousPlaceholderVisibility;
+                else
+                {
+                    if (editableItems.NewItemPlaceholderPosition != NewItemPlaceholderPosition.None)
+                    {
+                        editableItems.NewItemPlaceholderPosition = NewItemPlaceholderPosition.None;
+                    }
+
+                    _placeholderVisibility = Visibility.Collapsed;
+                }
             }
             else
             {
-                // The placeholder should be hidden when at the end
-                if (hasNewItemPlaceholdRow)
-                {
-                    if (canUserAddRows)
-                    {
-                        // During a row add, hide the placeholder, but store the previously desired position
-                        // so that it can be restored later.
-                        _previousPlaceholderVisibility = newItemPlaceholderRow.Visibility;
-                    }
-                
-                    newItemPlaceholderRow.Visibility = Visibility.Collapsed;
-                }
-
+                // During a row add, hide the placeholder
                 _placeholderVisibility = Visibility.Collapsed;
+            }
+
+            // Make sure the newItemPlaceholderRow reflects the correct visiblity
+            DataGridRow newItemPlaceholderRow = (DataGridRow)ItemContainerGenerator.ContainerFromItem(CollectionView.NewItemPlaceholder);
+            if (newItemPlaceholderRow != null)
+            {
+                newItemPlaceholderRow.CoerceValue(VisibilityProperty);
             }
         }
 
@@ -2867,7 +3639,7 @@ namespace Microsoft.Windows.Controls
             get
             {
                 IEditableCollectionView editableItems = EditableItems;
-                return (editableItems.NewItemPlaceholderPosition != NewItemPlaceholderPosition.None);
+                return editableItems.NewItemPlaceholderPosition != NewItemPlaceholderPosition.None;
             }
         }
 
@@ -2875,6 +3647,148 @@ namespace Microsoft.Windows.Controls
         {
             return (item == CollectionView.NewItemPlaceholder) || (item == DataGrid.NewItemPlaceholder);
         }
+
+        #endregion
+
+        #region Row Details
+
+        /// <summary>
+        ///     Determines which visibility mode the Row's details use.
+        /// </summary>
+        public DataGridRowDetailsVisibilityMode RowDetailsVisibilityMode 
+        {
+            get { return (DataGridRowDetailsVisibilityMode)GetValue(RowDetailsVisibilityModeProperty); }
+            set { SetValue(RowDetailsVisibilityModeProperty, value); }
+        }
+
+        /// <summary>
+        ///     DependencyProperty for RowDetailsVisibilityMode.
+        /// </summary>
+        public static readonly DependencyProperty RowDetailsVisibilityModeProperty =
+            DependencyProperty.Register("RowDetailsVisibilityMode", typeof(DataGridRowDetailsVisibilityMode), typeof(DataGrid), new FrameworkPropertyMetadata(DataGridRowDetailsVisibilityMode.VisibleWhenSelected, OnNotifyRowAndDetailsPropertyChanged));
+
+        /// <summary>
+        ///     Controls if the row details scroll.
+        /// </summary>
+        public bool AreRowDetailsFrozen
+        {
+            get { return (bool)GetValue(AreRowDetailsFrozenProperty); }
+            set { SetValue(AreRowDetailsFrozenProperty, value); }
+        }
+
+        /// <summary>
+        ///     DependencyProperty for AreRowDetailsFrozen.
+        /// </summary>
+        public static readonly DependencyProperty AreRowDetailsFrozenProperty =
+            DependencyProperty.Register("AreRowDetailsFrozen", typeof(bool), typeof(DataGrid), new FrameworkPropertyMetadata(false));
+
+        /// <summary>
+        ///     Template used for the Row details.
+        /// </summary>
+        public DataTemplate RowDetailsTemplate
+        {
+            get { return (DataTemplate)GetValue(RowDetailsTemplateProperty); }
+            set { SetValue(RowDetailsTemplateProperty, value); }
+        }
+
+        /// <summary>
+        ///     DependencyProperty for RowDetailsTemplate.
+        /// </summary>
+        public static readonly DependencyProperty RowDetailsTemplateProperty =
+            DependencyProperty.Register("RowDetailsTemplate", typeof(DataTemplate), typeof(DataGrid), new FrameworkPropertyMetadata(null, OnNotifyRowAndDetailsPropertyChanged));
+
+        /// <summary>
+        ///     TemplateSelector used for the Row details
+        /// </summary>
+        public DataTemplateSelector RowDetailsTemplateSelector
+        {
+            get { return (DataTemplateSelector)GetValue(RowDetailsTemplateSelectorProperty); }
+            set { SetValue(RowDetailsTemplateSelectorProperty, value); }
+        }
+
+        /// <summary>
+        ///     DependencyProperty for RowDetailsTemplateSelector.
+        /// </summary>
+        public static readonly DependencyProperty RowDetailsTemplateSelectorProperty =
+            DependencyProperty.Register("RowDetailsTemplateSelector", typeof(DataTemplateSelector), typeof(DataGrid), new FrameworkPropertyMetadata(null, OnNotifyRowAndDetailsPropertyChanged));
+
+        /// <summary>
+        ///     Event that is fired just before the details of a Row is shown
+        /// </summary>
+        public event EventHandler<DataGridRowDetailsEventArgs> LoadingRowDetails;
+
+        /// <summary>
+        ///     Event that is fired just before the details of a Row is hidden
+        /// </summary>
+        public event EventHandler<DataGridRowDetailsEventArgs> UnloadingRowDetails;
+
+        /// <summary>
+        ///     Event that is fired when the visibility of a Rows details changes.
+        /// </summary>
+        public event EventHandler<DataGridRowDetailsEventArgs> RowDetailsVisibilityChanged;
+
+        /// <summary>
+        ///     Invokes the LoadingRowDetails event
+        /// </summary>
+        protected virtual void OnLoadingRowDetails(DataGridRowDetailsEventArgs e)
+        {
+            e.Row.DetailsEventStatus = DataGridRow.RowDetailsEventStatus.Loaded;
+            if (LoadingRowDetails != null)
+            {
+                LoadingRowDetails(this, e);
+            }
+        }
+
+        /// <summary>
+        ///     Invokes the UnloadingRowDetails event
+        /// </summary>
+        protected virtual void OnUnloadingRowDetails(DataGridRowDetailsEventArgs e)
+        {
+            if (UnloadingRowDetails != null)
+            {
+                UnloadingRowDetails(this, e);
+            }
+        }
+
+        /// <summary>
+        ///     Invokes the RowDetailsVisibilityChanged event
+        /// </summary>
+        protected internal virtual void OnRowDetailsVisibilityChanged(DataGridRowDetailsEventArgs e)
+        {
+            if (RowDetailsVisibilityChanged != null)
+            {
+                RowDetailsVisibilityChanged(this, e);
+            }
+
+            var row = e.Row;
+
+            // Don't fire LoadingRowDetails it's disabled or already loaded.
+            if (row.DetailsEventStatus == DataGridRow.RowDetailsEventStatus.Pending && row.DetailsVisibility == Visibility.Visible && row.DetailsPresenter != null)
+            {
+                // No need to used DelayedOnLoadingRowDetails because OnRowDetailsVisibilityChanged isn't called until after the
+                // template is expanded.
+                OnLoadingRowDetails(new DataGridRowDetailsEventArgs(row, row.DetailsPresenter.DetailsElement));
+            }
+        }
+
+        #endregion
+
+        #region Row Resizing
+
+        /// <summary>
+        ///     A property that specifies whether the user can resize rows in the UI by dragging the row headers.
+        /// </summary>
+        public bool CanUserResizeRows
+        {
+            get { return (bool)GetValue(CanUserResizeRowsProperty); }
+            set { SetValue(CanUserResizeRowsProperty, value); }
+        }
+
+        /// <summary>
+        ///     The DependencyProperty that represents the CanUserResizeColumns property.
+        /// </summary>
+        public static readonly DependencyProperty CanUserResizeRowsProperty =
+            DependencyProperty.Register("CanUserResizeRows", typeof(bool), typeof(DataGrid), new FrameworkPropertyMetadata(true, new PropertyChangedCallback(OnNotifyRowHeaderPropertyChanged)));
 
         #endregion
 
@@ -2953,17 +3867,19 @@ namespace Microsoft.Windows.Controls
                 }
             }
 
-            if (!IsUpdatingSelectedCells) // Not deferring change notifications
+            // Not deferring change notifications
+            if (!IsUpdatingSelectedCells) 
             {
                 // This is most likely the case when SelectedCells was updated by
                 // the application. In this case, some fix-up is required, and
                 // the public event needs to fire.
 
-                using (UpdateSelectedCells()) // This will fire the event on dispose
-                {
+                // This will fire the event on dispose
+                using (UpdateSelectedCells()) 
+                {                    
                     if ((selectionMode == DataGridSelectionMode.Single) && // Single select mode
                         (action == NotifyCollectionChangedAction.Add) && // An item was added
-                        (_selectedCells.Count > 1)) // There is more than one selected cell
+                        (_selectedCells.Count > 1)) // There is more than one selected cell 
                     {
                         // When in single selection mode and there is more than one selected
                         // cell, remove all cells but the new cell.
@@ -2980,6 +3896,7 @@ namespace Microsoft.Windows.Controls
                         {
                             BeginUpdateSelectedItems();
                         }
+
                         try
                         {
                             object lastRowItem = null;
@@ -3057,6 +3974,18 @@ namespace Microsoft.Windows.Controls
             {
                 SelectedCellsChanged(this, e);
             }
+
+            // Raise automation events
+            if (AutomationPeer.ListenerExists(AutomationEvents.SelectionItemPatternOnElementSelected) ||
+                AutomationPeer.ListenerExists(AutomationEvents.SelectionItemPatternOnElementAddedToSelection) ||
+                AutomationPeer.ListenerExists(AutomationEvents.SelectionItemPatternOnElementRemovedFromSelection))
+            {
+                DataGridAutomationPeer peer = DataGridAutomationPeer.FromElement(this) as DataGridAutomationPeer;
+                if (peer != null)
+                {
+                    peer.RaiseAutomationCellSelectedEvent(e);
+                }
+            }
         }
 
         /// <summary>
@@ -3082,6 +4011,7 @@ namespace Microsoft.Windows.Controls
             {
                 dataGrid.SelectAllRows();
             }
+
             e.Handled = true;
         }
 
@@ -3097,6 +4027,15 @@ namespace Microsoft.Windows.Controls
                     _selectedCells.AddRegion(0, 0, numItems, numColumns);
                     SelectAll();
                 }
+            }
+        }
+
+        internal void SelectOnlyThisCell(DataGridCellInfo currentCellInfo)
+        {
+            using (UpdateSelectedCells())
+            {
+                _selectedCells.Clear();
+                _selectedCells.Add(currentCellInfo);
             }
         }
 
@@ -3239,7 +4178,6 @@ namespace Microsoft.Windows.Controls
             DataGridSelectionUnit oldUnit = (DataGridSelectionUnit)e.OldValue;
             
             // Full wipe on unit change
-
             if (oldUnit != DataGridSelectionUnit.Cell)
             {
                 dataGrid.UnselectAll();
@@ -3252,6 +4190,8 @@ namespace Microsoft.Windows.Controls
                     dataGrid._selectedCells.Clear();
                 }
             }
+
+            dataGrid.CoerceValue(IsSynchronizedWithCurrentItemProperty);
         }
 
         /// <summary>
@@ -3283,6 +4223,18 @@ namespace Microsoft.Windows.Controls
 
             // Delete depends on the selection state
             CommandManager.InvalidateRequerySuggested();
+
+            // Raise automation events
+            if (AutomationPeer.ListenerExists(AutomationEvents.SelectionItemPatternOnElementSelected) ||
+                AutomationPeer.ListenerExists(AutomationEvents.SelectionItemPatternOnElementAddedToSelection) ||
+                AutomationPeer.ListenerExists(AutomationEvents.SelectionItemPatternOnElementRemovedFromSelection))
+            {
+                DataGridAutomationPeer peer = DataGridAutomationPeer.FromElement(this) as DataGridAutomationPeer;
+                if (peer != null)
+                {
+                    peer.RaiseAutomationSelectionEvents(e);
+                }
+            }
 
             base.OnSelectionChanged(e);
         }
@@ -3326,6 +4278,7 @@ namespace Microsoft.Windows.Controls
                                 // There are more cells visible than being updated
                                 break;
                             }
+                     
                             rowTracker = rowTracker.Next;
                         }
 
@@ -3446,7 +4399,7 @@ namespace Microsoft.Windows.Controls
         /// </summary>
         /// <param name="row">The target row.</param>
         /// <param name="startDragging">Whether the input also indicated that dragging should start.</param>
-        internal void HandleSelectionForRowHeaderInput(DataGridRow row, bool startDragging)
+        internal void HandleSelectionForRowHeaderAndDetailsInput(DataGridRow row, bool startDragging)
         {
             object rowItem = row.Item;
 
@@ -3459,6 +4412,7 @@ namespace Microsoft.Windows.Controls
                     // DataGrid needs to be focused.
                     Focus();
                 }
+
                 CurrentCell = new DataGridCellInfo(rowItem, ColumnFromDisplayIndex(0), this);
             }
 
@@ -3496,6 +4450,7 @@ namespace Microsoft.Windows.Controls
             {
                 ReleaseMouseCapture();
             }
+
             _isDraggingSelection = false;
             _isRowDragging = false;
         }
@@ -3508,6 +4463,14 @@ namespace Microsoft.Windows.Controls
         ///     - Deselecting other rows
         ///     - Extending selection to the row
         /// </summary>
+        /// <remarks>
+        ///     ADO.Net has a bug (#524977) where if the row is in edit mode
+        ///     and atleast one of the cells are edited and committed without
+        ///     commiting the row itself, DataView.IndexOf for that row returns -1
+        ///     and DataView.Contains returns false. The Workaround to this problem 
+        ///     is to try to use the previously computed row index if the operations 
+        ///     are in the same row scope.
+        /// </remarks>
         private void MakeFullRowSelection(object dataItem, bool allowsExtendSelect, bool allowsMinimalSelect)
         {
             bool extendSelection = allowsExtendSelect && ShouldExtendSelection;
@@ -3523,12 +4486,12 @@ namespace Microsoft.Windows.Controls
                 {
                     BeginUpdateSelectedItems();
                 }
+
                 try
                 {
                     if (extendSelection)
                     {
                         // Extend selection from the anchor to the item
-
                         int numColumns = _columns.Count;
                         if (numColumns > 0)
                         {
@@ -3608,9 +4571,9 @@ namespace Microsoft.Windows.Controls
                                                 selectedItems.RemoveAt(index);
                                             }
                                         }
+
                                         _selectedCells.RemoveRegion(removeRangeStartIndex, 0, removeRangeEndIndex - removeRangeStartIndex + 1, Columns.Count);
                                     }
-
                                 }
 
                                 // Select the children in the selection range
@@ -3652,14 +4615,29 @@ namespace Microsoft.Windows.Controls
                                     // SelectedCells row by row, which is O(n).
                                     _selectedCells.Clear();
                                 }
+                     
                                 if (SelectedItems.Count > 0)
                                 {
                                     SelectedItems.Clear();
                                 }
                             }
 
-                            // Select the item
-                            SelectItem(dataItem);
+                            if (_editingRowIndex >= 0 && _editingRowItem == dataItem)
+                            {
+                                // ADO.Net bug HACK, see remarks.
+                                int numColumns = _columns.Count;
+                                if (numColumns > 0)
+                                {
+                                    _selectedCells.AddRegion(_editingRowIndex, 0, 1, numColumns);
+                                }
+
+                                SelectItem(dataItem, false);
+                            }
+                            else
+                            {
+                                // Select the item
+                                SelectItem(dataItem);
+                            }
                         }
 
                         _selectionAnchor = new DataGridCellInfo(dataItem, ColumnFromDisplayIndex(0), this);
@@ -3683,6 +4661,14 @@ namespace Microsoft.Windows.Controls
         ///     - Deselecting other cells
         ///     - Extending selection to the cell
         /// </summary>
+        /// <remarks>
+        ///     ADO.Net has a bug (#524977) where if the row is in edit mode
+        ///     and atleast one of the cells are edited and committed without
+        ///     commiting the row itself, DataView.IndexOf for that row returns -1
+        ///     and DataView.Contains returns false. The Workaround to this problem 
+        ///     is to try to use the previously computed row index if the operations 
+        ///     are in the same row scope.
+        /// </remarks>
         private void MakeCellSelection(DataGridCellInfo cellInfo, bool allowsExtendSelect, bool allowsMinimalSelect)
         {
             bool extendSelection = allowsExtendSelect && ShouldExtendSelection;
@@ -3693,17 +4679,32 @@ namespace Microsoft.Windows.Controls
 
             using (UpdateSelectedCells())
             {
+                int cellInfoColumnIndex = cellInfo.Column.DisplayIndex;
                 if (extendSelection)
                 {
                     // Extend selection from the anchor to the cell
-
                     ItemCollection items = Items;
 
                     int startIndex = items.IndexOf(_selectionAnchor.Value.Item);
                     int endIndex = items.IndexOf(cellInfo.Item);
+
+                    if (_editingRowIndex >= 0)
+                    {
+                        // ADO.Net bug HACK, see remarks.
+                        if (_selectionAnchor.Value.Item == _editingRowItem)
+                        {
+                            startIndex = _editingRowIndex;
+                        }
+
+                        if (cellInfo.Item == _editingRowItem)
+                        {
+                            endIndex = _editingRowIndex;
+                        }
+                    }
+
                     DataGridColumn anchorColumn = _selectionAnchor.Value.Column;
                     int startColumnIndex = anchorColumn.DisplayIndex;
-                    int endColumnIndex = cellInfo.Column.DisplayIndex;
+                    int endColumnIndex = cellInfoColumnIndex;
 
                     if ((startIndex >= 0) && (endIndex >= 0) &&
                         (startColumnIndex >= 0) && (endColumnIndex >= 0))
@@ -3725,6 +4726,13 @@ namespace Microsoft.Windows.Controls
                         {
                             // Remove the previously selected region
                             int currentCellIndex = items.IndexOf(CurrentCell.Item);
+                            if (_editingRowIndex >= 0 &&
+                                _editingRowItem == CurrentCell.Item)
+                            {
+                                // ADO.Net bug HACK, see remarks.
+                                currentCellIndex = _editingRowIndex;
+                            }
+
                             int currentCellColumnIndex = CurrentCell.Column.DisplayIndex;
 
                             int previousStartIndex = Math.Min(startIndex, currentCellIndex);
@@ -3775,10 +4783,27 @@ namespace Microsoft.Windows.Controls
                 }
                 else
                 {
-                    if (minimalModify && _selectedCells.Contains(cellInfo))
+                    bool selectedCellsContainsCellInfo = _selectedCells.Contains(cellInfo);
+                    bool singleRowOperation = (_editingRowIndex >= 0 && _editingRowItem == cellInfo.Item);
+                    if (!selectedCellsContainsCellInfo &&
+                        singleRowOperation)
+                    {
+                        // ADO.Net bug HACK, see remarks.
+                        selectedCellsContainsCellInfo = _selectedCells.Contains(_editingRowIndex, cellInfoColumnIndex);
+                    }
+
+                    if (minimalModify && selectedCellsContainsCellInfo)
                     {
                         // Unselect the one cell
-                        _selectedCells.Remove(cellInfo);
+                        if (singleRowOperation)
+                        {
+                            // ADO.Net bug HACK, see remarks.
+                            _selectedCells.RemoveRegion(_editingRowIndex, cellInfoColumnIndex, 1, 1);
+                        }
+                        else
+                        {
+                            _selectedCells.Remove(cellInfo);
+                        }
 
                         if ((SelectionUnit == DataGridSelectionUnit.CellOrRowHeader) &&
                             SelectedItems.Contains(cellInfo.Item))
@@ -3801,8 +4826,16 @@ namespace Microsoft.Windows.Controls
                             _selectedCells.Clear();
                         }
 
-                        // Select the cell
-                        _selectedCells.AddValidatedCell(cellInfo);
+                        if (singleRowOperation)
+                        {
+                            // ADO.Net bug HACK, see remarks.
+                            _selectedCells.AddRegion(_editingRowIndex, cellInfoColumnIndex, 1, 1);
+                        }
+                        else
+                        {
+                            // Select the cell
+                            _selectedCells.AddValidatedCell(cellInfo);
+                        }
                     }
 
                     _selectionAnchor = cellInfo;
@@ -3812,16 +4845,25 @@ namespace Microsoft.Windows.Controls
 
         private void SelectItem(object item)
         {
-            using (UpdateSelectedCells())
+            SelectItem(item, true);
+        }
+
+        private void SelectItem(object item, bool selectCells)
+        {
+            if (selectCells)
             {
-                int itemIndex = Items.IndexOf(item);
-                int numColumns = _columns.Count;
-                if ((itemIndex >= 0) && (numColumns > 0))
+                using (UpdateSelectedCells())
                 {
-                    _selectedCells.AddRegion(itemIndex, 0, 1, numColumns);
+                    int itemIndex = Items.IndexOf(item);
+                    int numColumns = _columns.Count;
+                    if ((itemIndex >= 0) && (numColumns > 0))
+                    {
+                        _selectedCells.AddRegion(itemIndex, 0, 1, numColumns);
+                    }
                 }
-                SelectedItems.Add(item);
             }
+
+            UpdateSelectedItems(item, /* Add = */ true);
         }
 
         private void UnselectItem(object item)
@@ -3834,7 +4876,39 @@ namespace Microsoft.Windows.Controls
                 {
                     _selectedCells.RemoveRegion(itemIndex, 0, 1, numColumns);
                 }
-                SelectedItems.Remove(item);
+            }
+
+            UpdateSelectedItems(item, /*Add = */ false);
+        }
+
+        /// <summary>
+        ///     Adds or Removes from SelectedItems when deferred selection is not handled by the caller. 
+        /// </summary>
+        private void UpdateSelectedItems(object item, bool add)
+        {
+            bool updatingSelectedItems = IsUpdatingSelectedItems;
+            if (!updatingSelectedItems)
+            {
+                BeginUpdateSelectedItems();
+            }
+
+            try
+            {
+                if (add)
+                {
+                    SelectedItems.Add(item);
+                }
+                else
+                {
+                    SelectedItems.Remove(item);
+                }
+            }
+            finally
+            {
+                if (!updatingSelectedItems)
+                {
+                    EndUpdateSelectedItems();
+                }
             }
         }
 
@@ -3916,11 +4990,11 @@ namespace Microsoft.Windows.Controls
         ///     CTRL is down.
         ///     Previous selection should not be cleared, or a selected item should be toggled.
         /// </summary>
-        private bool ShouldMinimallyModifySelection
+        private static bool ShouldMinimallyModifySelection
         {
             get
             {
-                return ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control);
+                return (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
             }
         }
 
@@ -3951,6 +5025,18 @@ namespace Microsoft.Windows.Controls
             {
                 // Send the change notification to the selected cells collection
                 _selectedCells.OnItemsCollectionChanged(e, SelectedItems);
+            }
+
+            if (e.Action == NotifyCollectionChangedAction.Remove || e.Action == NotifyCollectionChangedAction.Replace)
+            {
+                foreach (object item in e.OldItems)
+                {
+                    _itemAttachedStorage.ClearItem(item);
+                }
+            }
+            else if (e.Action == NotifyCollectionChangedAction.Reset)
+            {
+                _itemAttachedStorage.Clear();
             }
         }
 
@@ -4033,7 +5119,6 @@ namespace Microsoft.Windows.Controls
                 e.Handled = true;
                 bool wasEditing = currentCellContainer.IsEditing;
 
-
                 UIElement startElement = Keyboard.FocusedElement as UIElement;
                 ContentElement startContentElement = (startElement == null) ? Keyboard.FocusedElement as ContentElement : null;
                 if ((startElement != null) || (startContentElement != null))
@@ -4050,6 +5135,7 @@ namespace Microsoft.Windows.Controls
                             {
                                 Keyboard.Focus(nextFocusTarget as IInputElement);
                             }
+
                             return;
                         }
 
@@ -4078,16 +5164,27 @@ namespace Microsoft.Windows.Controls
                             case Key.Left:
                                 if (controlModifier)
                                 {
-                                    nextDisplayIndex = 0;
+                                    nextDisplayIndex = InternalColumns.FirstVisibleDisplayIndex;
                                 }
                                 else
                                 {
                                     nextDisplayIndex--;
+                                    while (nextDisplayIndex >= 0)
+                                    {
+                                        DataGridColumn column = ColumnFromDisplayIndex(nextDisplayIndex);
+                                        if (column.IsVisible)
+                                        {
+                                            break;
+                                        }
+                             
+                                        nextDisplayIndex--;
+                                    }
+                             
                                     if (nextDisplayIndex < 0)
                                     {
                                         if (keyboardNavigationMode == KeyboardNavigationMode.Cycle)
                                         {
-                                            nextDisplayIndex = Columns.Count - 1;
+                                            nextDisplayIndex = InternalColumns.LastVisibleDisplayIndex;
                                         }
                                         else if (keyboardNavigationMode == KeyboardNavigationMode.Contained)
                                         {
@@ -4100,21 +5197,34 @@ namespace Microsoft.Windows.Controls
                                         }
                                     }
                                 }
+
                                 break;
 
                             case Key.Right:
                                 if (controlModifier)
                                 {
-                                    nextDisplayIndex = Math.Max(0, Columns.Count - 1);
+                                    nextDisplayIndex = Math.Max(0, InternalColumns.LastVisibleDisplayIndex);
                                 }
                                 else
                                 {
                                     nextDisplayIndex++;
+                                    int columnCount = Columns.Count;
+                                    while (nextDisplayIndex < columnCount)
+                                    {
+                                        DataGridColumn column = ColumnFromDisplayIndex(nextDisplayIndex);
+                                        if (column.IsVisible)
+                                        {
+                                            break;
+                                        }
+
+                                        nextDisplayIndex++;
+                                    }
+
                                     if (nextDisplayIndex >= Columns.Count)
                                     {
                                         if (keyboardNavigationMode == KeyboardNavigationMode.Cycle)
                                         {
-                                            nextDisplayIndex = 0;
+                                            nextDisplayIndex = InternalColumns.FirstVisibleDisplayIndex;
                                         }
                                         else if (keyboardNavigationMode == KeyboardNavigationMode.Contained)
                                         {
@@ -4127,6 +5237,7 @@ namespace Microsoft.Windows.Controls
                                         }
                                     }
                                 }
+
                                 break;
 
                             case Key.Up:
@@ -4154,6 +5265,7 @@ namespace Microsoft.Windows.Controls
                                         }
                                     }
                                 }
+
                                 break;
 
                             case Key.Down:
@@ -4182,6 +5294,7 @@ namespace Microsoft.Windows.Controls
                                         }
                                     }
                                 }
+
                                 break;
                         }
 
@@ -4191,7 +5304,9 @@ namespace Microsoft.Windows.Controls
                         DataGridCell nextCellContainer = TryFindCell(nextItem, nextColumn);
 
                         if (nextCellContainer == null || nextCellContainer == currentCellContainer || !nextCellContainer.Focus())
+                        {
                             return;
+                        }
                     }
  
                     // Attempt to move focus
@@ -4218,7 +5333,6 @@ namespace Microsoft.Windows.Controls
             // The standard focus change method is being called here, so even if focus moves
             // to something other than a cell, focus should land on the element that it would
             // have landed on anyway.
-
             DataGridCell currentCellContainer = CurrentCellContainer;
             if (currentCellContainer != null)
             {
@@ -4246,6 +5360,35 @@ namespace Microsoft.Windows.Controls
                             currentCellContainer.MoveFocus(request);
                         }
 
+                        // In case of grouping if a row level commit happened due to
+                        // the previous focus change, the container of the row gets
+                        // removed from the visual tree by the CollectionView, 
+                        // but we still hang on to a cell of that row, which will be used
+                        // by the call to SelectAndEditOnFocusMove. Hence re-establishing the
+                        // focus appropriately in such cases.
+                        if (IsGrouping && wasEditing)
+                        {
+                            DataGridCell newCell = GetCellForSelectAndEditOnFocusMove();
+
+                            if (newCell != null &&
+                                newCell.RowDataItem == currentCellContainer.RowDataItem)
+                            {
+                                DataGridCell realNewCell = TryFindCell(newCell.RowDataItem, newCell.Column);
+
+                                // Forcing an UpdateLayout since the generation of the new row
+                                // container which was removed earlier is done in measure.
+                                if (realNewCell == null)
+                                {
+                                    UpdateLayout();
+                                    realNewCell = TryFindCell(newCell.RowDataItem, newCell.Column);
+                                }
+                                if (realNewCell != null && realNewCell != newCell)
+                                {
+                                    realNewCell.Focus();
+                                }
+                            }
+                        }
+
                         // When doing TAB and SHIFT+TAB focus movement, don't confuse the selection
                         // code, which also relies on SHIFT to know whether to extend selection or not.
                         SelectAndEditOnFocusMove(e, currentCellContainer, wasEditing, /* allowsExtendSelect = */ false, /* ignoreControlKey = */ true);
@@ -4263,10 +5406,8 @@ namespace Microsoft.Windows.Controls
 
                 DataGridColumn column = currentCellContainer.Column;
 
-                // Commit a current edit
-                CommitAnyEdit();
-
-                if ((e.KeyboardDevice.Modifiers & ModifierKeys.Control) == 0)
+                // Commit any current edit
+                if (CommitAnyEdit() && ((e.KeyboardDevice.Modifiers & ModifierKeys.Control) == 0))
                 {
                     bool shiftModifier = ((e.KeyboardDevice.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift);
 
@@ -4302,15 +5443,22 @@ namespace Microsoft.Windows.Controls
             }
         }
 
-        private void SelectAndEditOnFocusMove(KeyEventArgs e, DataGridCell oldCell, bool wasEditing, bool allowsExtendSelect, bool ignoreControlKey)
+        private DataGridCell GetCellForSelectAndEditOnFocusMove()
         {
             DataGridCell newCell = Keyboard.FocusedElement as DataGridCell;
 
             // If focus has moved within DataGridCell use CurrentCellContainer
-            if (newCell == null && CurrentCellContainer!=null && CurrentCellContainer.IsKeyboardFocusWithin)
+            if (newCell == null && CurrentCellContainer != null && CurrentCellContainer.IsKeyboardFocusWithin)
             {
                 newCell = CurrentCellContainer;
             }
+
+            return newCell;
+        }
+
+        private void SelectAndEditOnFocusMove(KeyEventArgs e, DataGridCell oldCell, bool wasEditing, bool allowsExtendSelect, bool ignoreControlKey)
+        {
+            DataGridCell newCell = GetCellForSelectAndEditOnFocusMove();
 
             if ((newCell != null) && (newCell.DataGridOwner == this))
             {
@@ -4339,7 +5487,7 @@ namespace Microsoft.Windows.Controls
 
                 // Go to the first or last cell
                 object item = controlModifier ? Items[homeKey ? 0 : Items.Count - 1] : CurrentItem;
-                DataGridColumn column = ColumnFromDisplayIndex(homeKey ? 0 : _columns.Count - 1);
+                DataGridColumn column = ColumnFromDisplayIndex(homeKey ? InternalColumns.FirstVisibleDisplayIndex : InternalColumns.LastVisibleDisplayIndex);
 
                 ScrollCellIntoView(item, column);
                 DataGridCell cell = TryFindCell(item, column);
@@ -4357,7 +5505,6 @@ namespace Microsoft.Windows.Controls
             // on InternalItemsHost, which relies on DataGridRowsPresenter.
             // Additionally, it relies on ViewportHeight being in logical units
             // instead of pixels.
-
             ScrollViewer scrollHost = InternalScrollHost;
             if (scrollHost != null)
             {
@@ -4370,7 +5517,6 @@ namespace Microsoft.Windows.Controls
                     // should be in logical units.
                     // This is not going to work well when the rows have different heights, but
                     // it is the best estimate we have at the moment.
-
                     int jumpDistance = Math.Max(1, (int)scrollHost.ViewportHeight - 1);
                     int targetIndex = (e.Key == Key.PageUp) ? rowIndex - jumpDistance : rowIndex + jumpDistance;
                     targetIndex = Math.Max(0, Math.Min(targetIndex, Items.Count - 1));
@@ -4420,7 +5566,7 @@ namespace Microsoft.Windows.Controls
                                 if ((row != null) && (row.Item != CurrentItem))
                                 {
                                     // Continue a row header drag to the given row
-                                    HandleSelectionForRowHeaderInput(row, /* startDragging = */ false);
+                                    HandleSelectionForRowHeaderAndDetailsInput(row, /* startDragging = */ false);
                                     CurrentItem = row.Item;
                                     e.Handled = true;
                                 }
@@ -4439,6 +5585,7 @@ namespace Microsoft.Windows.Controls
                                         cell = GetCellNearMouse();
                                     }
                                 }
+
                                 if ((cell != null) && (cell != CurrentCellContainer))
                                 {
                                     HandleSelectionForCellInput(cell, /* startDragging = */ false, /* allowsExtendSelect = */ true, /* allowsMinimalSelect = */ true);
@@ -4457,7 +5604,7 @@ namespace Microsoft.Windows.Controls
                                 if ((row != null) && (row.Item != CurrentItem))
                                 {
                                     // The mouse is directly to the left or right of the row
-                                    HandleSelectionForRowHeaderInput(row, /* startDragging = */ false);
+                                    HandleSelectionForRowHeaderAndDetailsInput(row, /* startDragging = */ false);
                                     CurrentItem = row.Item;
                                     e.Handled = true;
                                 }
@@ -4513,11 +5660,15 @@ namespace Microsoft.Windows.Controls
             {
                 cell = sourceElement as DataGridCell;
                 if (cell != null)
+                {
                     break;
+                }
 
                 rowHeader = sourceElement as DataGridRowHeader;
                 if (rowHeader != null)
+                {
                     break;
+                }
 
                 sourceElement = VisualTreeHelper.GetParent(sourceElement) as UIElement;
             }
@@ -4533,10 +5684,9 @@ namespace Microsoft.Windows.Controls
                 DataGridRow parentRow = rowHeader.ParentRow;
                 if (parentRow != null)
                 {
-                    HandleSelectionForRowHeaderInput(parentRow, /* startDragging = */ false);
+                    HandleSelectionForRowHeaderAndDetailsInput(parentRow, /* startDragging = */ false);
                 }
             }
-
         }
 
         /// <summary>
@@ -4662,7 +5812,7 @@ namespace Microsoft.Windows.Controls
         /// <returns>
         ///     true if the cell can be a drag target. false otherwise.
         /// </returns>
-        private bool CalculateCellDistance(FrameworkElement cell, DataGridRow rowOwner, Panel itemsHost, Rect itemsHostBounds, bool isMouseInCorner, out double distance)
+        private static bool CalculateCellDistance(FrameworkElement cell, DataGridRow rowOwner, Panel itemsHost, Rect itemsHostBounds, bool isMouseInCorner, out double distance)
         {
             GeneralTransform transform = cell.TransformToAncestor(itemsHost);
             Rect cellBounds = new Rect(new Point(), cell.RenderSize);
@@ -4697,6 +5847,7 @@ namespace Microsoft.Windows.Controls
                             // Mouse is outside but is within a columns horizontal bounds
                             distance = Math.Abs(pt.Y - cellBounds.Top);
                         }
+
                         return true;
                     }
                     else if ((rowPt.Y >= rowBounds.Top) && (rowPt.Y <= rowBounds.Bottom))
@@ -4819,19 +5970,26 @@ namespace Microsoft.Windows.Controls
 
         #endregion
 
+        #region Automation
+
+        protected override System.Windows.Automation.Peers.AutomationPeer OnCreateAutomationPeer()
+        {
+            return new Microsoft.Windows.Automation.Peers.DataGridAutomationPeer(this);
+        }
+
+        #endregion
+
         #region Cell Info
 
         private DataGridCell TryFindCell(DataGridCellInfo info)
         {
             // Does not de-virtualize cells
-
             return TryFindCell(info.Item, info.Column);
         }
 
-        private DataGridCell TryFindCell(object item, DataGridColumn column)
+        internal DataGridCell TryFindCell(object item, DataGridColumn column)
         {
             // Does not de-virtualize cells
-
             DataGridRow row = (DataGridRow)ItemContainerGenerator.ContainerFromItem(item);
             int columnIndex = _columns.IndexOf(column);
             if ((row != null) && (columnIndex >= 0))
@@ -4850,10 +6008,11 @@ namespace Microsoft.Windows.Controls
         /// Dependecy property for CanUserSortColumns Property
         /// </summary>
         public static readonly DependencyProperty CanUserSortColumnsProperty =
-            DependencyProperty.Register("CanUserSortColumns",
-                                        typeof(bool),
-                                        typeof(DataGrid),
-                                        new FrameworkPropertyMetadata(true));
+            DependencyProperty.Register(
+                "CanUserSortColumns",
+                typeof(bool),
+                typeof(DataGrid),
+                new FrameworkPropertyMetadata(true));
 
         /// <summary>
         /// The property which determines whether the datagrid can be sorted by 
@@ -4881,8 +6040,10 @@ namespace Microsoft.Windows.Controls
 
             if (!eventArgs.Handled)
             {
-                DefaultSort(eventArgs.Column,
-                    /* clearExistinSortDescriptions */ (Keyboard.Modifiers & ModifierKeys.Shift) != ModifierKeys.Shift);
+                DefaultSort(
+                    eventArgs.Column,
+                    /* clearExistinSortDescriptions */ 
+                    (Keyboard.Modifiers & ModifierKeys.Shift) != ModifierKeys.Shift);
             }
         }
 
@@ -4899,23 +6060,24 @@ namespace Microsoft.Windows.Controls
                 return;
             }
 
-            CommitAnyEdit();
-
-            PrepareForSort(sortColumn);
-
-            DataGridSortingEventArgs eventArgs = new DataGridSortingEventArgs(sortColumn);
-            OnSorting(eventArgs);
-
-            if (Items.NeedsRefresh)
+            if (CommitAnyEdit())
             {
-                try
+                PrepareForSort(sortColumn);
+
+                DataGridSortingEventArgs eventArgs = new DataGridSortingEventArgs(sortColumn);
+                OnSorting(eventArgs);
+
+                if (Items.NeedsRefresh)
                 {
-                    Items.Refresh();
-                }
-                catch (InvalidOperationException invalidOperationException)
-                {
-                    Items.SortDescriptions.Clear();
-                    throw new InvalidOperationException(SR.Get(SRID.DataGrid_ProbableInvalidSortDescription), invalidOperationException);
+                    try
+                    {
+                        Items.Refresh();
+                    }
+                    catch (InvalidOperationException invalidOperationException)
+                    {
+                        Items.SortDescriptions.Clear();
+                        throw new InvalidOperationException(SR.Get(SRID.DataGrid_ProbableInvalidSortDescription), invalidOperationException);
+                    }
                 }
             }
         }
@@ -4930,6 +6092,7 @@ namespace Microsoft.Windows.Controls
             {
                 return;
             }
+
             if (Columns != null)
             {
                 foreach (DataGridColumn column in Columns)
@@ -4960,40 +6123,20 @@ namespace Microsoft.Windows.Controls
             }
 
             string sortPropertyName = column.SortMemberPath;
-            if (string.IsNullOrEmpty(sortPropertyName))
-            {
-                DataGridBoundColumn boundColumn = column as DataGridBoundColumn;
-                if (boundColumn != null)
-                {
-                    Binding binding = boundColumn.DataFieldBinding as Binding;
-                    if (binding != null)
-                    {
-                        if (!string.IsNullOrEmpty(binding.XPath))
-                        {
-                            sortPropertyName = binding.XPath;
-                        }
-                        else if (binding.Path != null)
-                        {
-                            sortPropertyName = binding.Path.Path;
-                        }
-                    }
-                }
-            }
-
             if (!string.IsNullOrEmpty(sortPropertyName))
             {
                 int descriptorIndex = -1;
                 if (clearExistingSortDescriptions)
                 {
-                    //clear the sortdesriptions collection
+                    // clear the sortdesriptions collection
                     Items.SortDescriptions.Clear();
                 }
                 else
                 {
-                    //get the index of existing descriptor to replace it
+                    // get the index of existing descriptor to replace it
                     for (int i = 0; i < Items.SortDescriptions.Count; i++)
                     {
-                        if (string.Compare(Items.SortDescriptions[i].PropertyName, sortPropertyName) == 0 &&
+                        if (string.Compare(Items.SortDescriptions[i].PropertyName, sortPropertyName, StringComparison.Ordinal) == 0 &&
                             (GroupingSortDescriptionIndices == null ||
                             !GroupingSortDescriptionIndices.Contains(i)))
                         {
@@ -5002,6 +6145,7 @@ namespace Microsoft.Windows.Controls
                         }
                     }
                 }
+
                 SortDescription sortDescription = new SortDescription(sortPropertyName, sortDirection);
                 try
                 {
@@ -5025,6 +6169,7 @@ namespace Microsoft.Windows.Controls
                     Items.SortDescriptions.Clear();
                     throw new InvalidOperationException(SR.Get(SRID.DataGrid_InvalidSortDescription), invalidOperationException);
                 }
+
                 column.SortDirection = sortDirection;
             }
         }
@@ -5039,6 +6184,7 @@ namespace Microsoft.Windows.Controls
             {
                 return _groupingSortDescriptionIndices;
             }
+
             set
             {
                 _groupingSortDescriptionIndices = value;
@@ -5069,6 +6215,7 @@ namespace Microsoft.Windows.Controls
                             GroupingSortDescriptionIndices[i]++;
                         }
                     }
+
                     break;
                 case NotifyCollectionChangedAction.Remove:
                     Debug.Assert(e.OldItems.Count == 1, "SortDescriptionCollection should handle one element at a time");
@@ -5085,9 +6232,10 @@ namespace Microsoft.Windows.Controls
                             count--;
                         }
                     }
+
                     break;
                 case NotifyCollectionChangedAction.Move:
-                    //SortDescriptionCollection doesnt support move, atleast as an atomic operation. Hence Do nothing.
+                    // SortDescriptionCollection doesnt support move, atleast as an atomic operation. Hence Do nothing.
                     break;
                 case NotifyCollectionChangedAction.Replace:
                     Debug.Assert(e.OldItems.Count == 1 && e.NewItems.Count == 1, "SortDescriptionCollection should handle one element at a time");
@@ -5117,6 +6265,7 @@ namespace Microsoft.Windows.Controls
                 {
                     Items.SortDescriptions.RemoveAt(GroupingSortDescriptionIndices[i] - i);
                 }
+
                 GroupingSortDescriptionIndices.Clear();
             }
             finally
@@ -5131,7 +6280,7 @@ namespace Microsoft.Windows.Controls
         /// </summary>
         /// <param name="propertyGroupDescription"></param>
         /// <returns></returns>
-        private bool CanConvertToSortDescription(PropertyGroupDescription propertyGroupDescription)
+        private static bool CanConvertToSortDescription(PropertyGroupDescription propertyGroupDescription)
         {
             if (propertyGroupDescription != null &&
                 propertyGroupDescription.Converter == null &&
@@ -5139,6 +6288,7 @@ namespace Microsoft.Windows.Controls
             {
                 return true;
             }
+
             return false;
         }
 
@@ -5165,6 +6315,7 @@ namespace Microsoft.Windows.Controls
                         {
                             GroupingSortDescriptionIndices = new List<int>();
                         }
+
                         GroupingSortDescriptionIndices.Add(insertIndex++);
                     }
                 }
@@ -5205,6 +6356,7 @@ namespace Microsoft.Windows.Controls
                     {
                         RegenerateGroupingSortDescriptions();
                     }
+
                     break;
                 case NotifyCollectionChangedAction.Remove:
                     Debug.Assert(e.OldItems.Count == 1, "GroupDescriptionCollection should handle one element at a time");
@@ -5212,17 +6364,19 @@ namespace Microsoft.Windows.Controls
                     {
                         RegenerateGroupingSortDescriptions();
                     }
+
                     break;
                 case NotifyCollectionChangedAction.Move:
-                    //Do Nothing
+                    // Do Nothing
                     break;
                 case NotifyCollectionChangedAction.Replace:
                     Debug.Assert(e.OldItems.Count == 1 && e.NewItems.Count == 1, "GroupDescriptionCollection should handle one element at a time");
-                    if ((CanConvertToSortDescription(e.OldItems[0] as PropertyGroupDescription)) || 
-                        (CanConvertToSortDescription(e.NewItems[0] as PropertyGroupDescription)))
+                    if (CanConvertToSortDescription(e.OldItems[0] as PropertyGroupDescription) || 
+                        CanConvertToSortDescription(e.NewItems[0] as PropertyGroupDescription))
                     {
                         RegenerateGroupingSortDescriptions();
                     }
+
                     break;
                 case NotifyCollectionChangedAction.Reset:
                     RemoveGroupingSortDescriptions();
@@ -5327,6 +6481,30 @@ namespace Microsoft.Windows.Controls
         }
 
         /// <summary>
+        ///     Coercion callback for ItemsSource property
+        /// </summary>
+        /// <remarks>
+        ///     SortDescriptions and GroupDescriptions are supposed to be
+        ///     cleared in PropertyChangedCallback or OnItemsSourceChanged
+        ///     virtual. But it seems that the SortDescriptions are applied
+        ///     to the new CollectionView due to new ItemsSource in 
+        ///     PropertyChangedCallback of base class (which would execute
+        ///     before PropertyChangedCallback of this class) and before calling
+        ///     OnItemsSourceChanged virtual. Hence handling it in Coercion callback.
+        /// </remarks>
+        private static object OnCoerceItemsSourceProperty(DependencyObject d, object baseValue)
+        {
+            DataGrid dataGrid = (DataGrid)d;
+            if (baseValue != dataGrid._cachedItemsSource && dataGrid._cachedItemsSource != null)
+            {
+                dataGrid.Items.SortDescriptions.Clear();
+                dataGrid.Items.GroupDescriptions.Clear();
+            }
+
+            return baseValue;
+        }
+
+        /// <summary>
         /// The polymorphic method which gets called whenever the ItemsSource gets changed.
         /// We regenerate columns if required when ItemsSource gets changed.
         /// </summary>
@@ -5335,6 +6513,18 @@ namespace Microsoft.Windows.Controls
         protected override void OnItemsSourceChanged(IEnumerable oldValue, IEnumerable newValue)
         {
             base.OnItemsSourceChanged(oldValue, newValue);
+
+            // ItemsControl calls a ClearValue on ItemsSource property
+            // whenever it is set to null. So Coercion is not called
+            // in such case. Hence clearing the SortDescriptions and 
+            // GroupDescriptions here when new value is null.
+            if (newValue == null)
+            {
+                Items.SortDescriptions.Clear();
+                Items.GroupDescriptions.Clear();
+            }
+
+            _cachedItemsSource = newValue;
 
             INotifyCollectionChanged oldNotifyCollection = oldValue as INotifyCollectionChanged;
             if (oldNotifyCollection != null && DeferAutoGeneration)
@@ -5354,12 +6544,17 @@ namespace Microsoft.Windows.Controls
                 RegenerateAutoColumns();
             }
 
+            InternalColumns.InvalidateColumnWidthsComputation();
+
             CoerceValue(CanUserAddRowsProperty);
             CoerceValue(CanUserDeleteRowsProperty);
 
             ResetRowHeaderActualWidth();
 
             UpdateNewItemPlaceholder(/* isAddingNewItem = */ false);
+
+            HasCellValidationError = false;
+            HasRowValidationError = false;
         }
 
         /// <summary>
@@ -5372,6 +6567,7 @@ namespace Microsoft.Windows.Controls
             {
                 return _deferAutoGeneration;
             }
+
             set
             {
                 bool oldValue = _deferAutoGeneration;
@@ -5407,9 +6603,26 @@ namespace Microsoft.Windows.Controls
                 AddAutoColumns();
                 DeferAutoGeneration = false;
             }
+            else if ((e.Action == NotifyCollectionChangedAction.Remove) || (e.Action == NotifyCollectionChangedAction.Replace))
+            {
+                if (HasRowValidationError || HasCellValidationError)
+                {
+                    foreach (object item in e.OldItems)
+                    {
+                        if (IsAddingOrEditingRowItem(item))
+                        {
+                            HasRowValidationError = false;
+                            HasCellValidationError = false;
+                            break;
+                        }
+                    }
+                }
+            }
             else if (e.Action == NotifyCollectionChangedAction.Reset)
             {
                 ResetRowHeaderActualWidth();
+                HasRowValidationError = false;
+                HasCellValidationError = false;
             }
         }
 
@@ -5422,14 +6635,15 @@ namespace Microsoft.Windows.Controls
                 ItemsSource is INotifyCollectionChanged &&
                 DataItemsCount == 0)
             {
-                //do deferred generation
+                // do deferred generation
                 DeferAutoGeneration = true;
             }
             else if (!_measureNeverInvoked)
             {
-                DataGrid.GenerateColumns((IItemProperties)(Items),
-                            this,
-                            null);
+                DataGrid.GenerateColumns(
+                    (IItemProperties)Items,
+                    this,
+                    null);
   
                 OnAutoGeneratedColumns(EventArgs.Empty);
             }
@@ -5470,15 +6684,16 @@ namespace Microsoft.Windows.Controls
         /// </summary>
         /// <param name="iItemProperties"></param>
         /// <returns></returns>
-        public static Collection<DataGridColumn> GenerateColumns(IItemProperties iItemProperties)
+        public static Collection<DataGridColumn> GenerateColumns(IItemProperties itemProperties)
         {
-            if (iItemProperties == null)
+            if (itemProperties == null)
             {
-                throw new ArgumentNullException("iItemProperties");
+                throw new ArgumentNullException("itemProperties");
             }
 
             Collection<DataGridColumn> columnCollection = new Collection<DataGridColumn>();
-            DataGrid.GenerateColumns(iItemProperties,
+            DataGrid.GenerateColumns(
+                itemProperties,
                 null,
                 columnCollection);
             return columnCollection;
@@ -5491,7 +6706,8 @@ namespace Microsoft.Windows.Controls
         /// <param name="dataGrid"></param>
         /// <param name="iItemProperties"></param>
         /// <param name="columnCollection"></param>
-        private static void GenerateColumns(IItemProperties iItemProperties,
+        private static void GenerateColumns(
+            IItemProperties iItemProperties,
             DataGrid dataGrid,
             Collection<DataGridColumn> columnCollection)
         {
@@ -5509,8 +6725,8 @@ namespace Microsoft.Windows.Controls
 
                     if (dataGrid != null)
                     {
-                        //AutoGeneratingColumn event is raised before generating and adding column to datagrid
-                        //and the column returned by the event handler is used instead of the original column.
+                        // AutoGeneratingColumn event is raised before generating and adding column to datagrid
+                        // and the column returned by the event handler is used instead of the original column.
                         DataGridAutoGeneratingColumnEventArgs eventArgs = new DataGridAutoGeneratingColumnEventArgs(dataGridColumn, itemProperty);
                         dataGrid.OnAutoGeneratingColumn(eventArgs);
 
@@ -5535,7 +6751,7 @@ namespace Microsoft.Windows.Controls
         /// <param name="e"></param>
         private static void OnAutoGenerateColumnsPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
-            bool newValue = (bool)(e.NewValue);
+            bool newValue = (bool)e.NewValue;
 
             DataGrid dataGrid = (DataGrid)d;
 
@@ -5557,13 +6773,12 @@ namespace Microsoft.Windows.Controls
         /// Dependency Property fro FrozenColumnCount Property
         /// </summary>
         public static readonly DependencyProperty FrozenColumnCountProperty =
-            DependencyProperty.Register("FrozenColumnCount", 
-                                        typeof(int), 
-                                        typeof(DataGrid), 
-                                        new FrameworkPropertyMetadata(0, 
-                                                                      new PropertyChangedCallback(OnFrozenColumnCountPropertyChanged), 
-                                                                      new CoerceValueCallback(OnCoerceFrozenColumnCount)),
-                                        new ValidateValueCallback(ValidateFrozenColumnCount));
+            DependencyProperty.Register(
+                "FrozenColumnCount", 
+                typeof(int), 
+                typeof(DataGrid), 
+                new FrameworkPropertyMetadata(0, new PropertyChangedCallback(OnFrozenColumnCountPropertyChanged), new CoerceValueCallback(OnCoerceFrozenColumnCount)),
+                new ValidateValueCallback(ValidateFrozenColumnCount));
 
         /// <summary>
         /// Property which determines the number of columns which are frozen from the beginning in order of display
@@ -5600,7 +6815,7 @@ namespace Microsoft.Windows.Controls
         /// <param name="e"></param>
         private static void OnFrozenColumnCountPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
-            ((DataGrid)d).NotifyPropertyChanged(d, e, NotificationTarget.ColumnCollection | NotificationTarget.ColumnHeaders | NotificationTarget.CellsPresenter);
+            ((DataGrid)d).NotifyPropertyChanged(d, e, NotificationTarget.ColumnCollection | NotificationTarget.ColumnHeadersPresenter | NotificationTarget.CellsPresenter);
         }
 
         /// <summary>
@@ -5611,7 +6826,7 @@ namespace Microsoft.Windows.Controls
         private static bool ValidateFrozenColumnCount(object value)
         {
             int frozenCount = (int)value;
-            return (frozenCount >= 0);
+            return frozenCount >= 0;
         }
 
         /// <summary>
@@ -5638,6 +6853,7 @@ namespace Microsoft.Windows.Controls
             {
                 return (double)GetValue(NonFrozenColumnsViewportHorizontalOffsetProperty);
             }
+
             internal set
             {
                 SetValue(NonFrozenColumnsViewportHorizontalOffsetPropertyKey, value);
@@ -5649,28 +6865,90 @@ namespace Microsoft.Windows.Controls
         /// </summary>
         public override void OnApplyTemplate()
         {
-            _internalScrollHost = null;
+            CleanUpInternalScrollControls();
             base.OnApplyTemplate();
         }
 
-        /// <summary>
-        /// Method which gets called when Horizontal scroll occurs on the scroll viewer of datagrid.
-        /// Forwards the call to rows and header presenter.
-        /// </summary>
-        internal void OnHorizontalScroll()
-        {
-            ContainerTracking<DataGridRow> tracker = _rowTrackingRoot;
-            while (tracker != null)
-            {
-                tracker.Container.OnHorizontalScroll();
-                tracker = tracker.Next;
-            }
+        #endregion
 
-            if (ColumnHeadersPresenter != null)
+        #region Container Virtualization
+
+        /// <summary>
+        ///     Property which determines if row virtualization is enabled or disabled
+        /// </summary>
+        public bool EnableRowVirtualization
+        {
+            get { return (bool)GetValue(EnableRowVirtualizationProperty); }
+            set { SetValue(EnableRowVirtualizationProperty, value); }
+        }
+
+        /// <summary>
+        ///     Dependency property for EnableRowVirtualization
+        /// </summary>
+        public static readonly DependencyProperty EnableRowVirtualizationProperty = DependencyProperty.Register(
+            "EnableRowVirtualization",
+            typeof(bool),
+            typeof(DataGrid),
+            new FrameworkPropertyMetadata(true, new PropertyChangedCallback(OnEnableRowVirtualizationChanged)));
+
+        /// <summary>
+        ///     Property changed callback for EnableRowVirtualization.
+        ///     Keeps VirtualizingStackPanel.IsVirtualizingProperty in sync.
+        /// </summary>
+        private static void OnEnableRowVirtualizationChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            DataGrid dataGrid = (DataGrid)d;
+            dataGrid.CoerceValue(VirtualizingStackPanel.IsVirtualizingProperty);
+
+            Panel itemsHost = dataGrid.InternalItemsHost;
+            if (itemsHost != null)
             {
-                ColumnHeadersPresenter.OnHorizontalScroll();
+                itemsHost.InvalidateMeasure();
+                itemsHost.InvalidateArrange();
             }
         }
+
+        /// <summary>
+        ///     Coercion callback for VirtualizingStackPanel.IsVirtualizingProperty
+        /// </summary>
+        private static object OnCoerceIsVirtualizingProperty(DependencyObject d, object baseValue)
+        {
+            if (!DataGridHelper.IsDefaultValue(d, DataGrid.EnableRowVirtualizationProperty))
+            {
+                return d.GetValue(DataGrid.EnableRowVirtualizationProperty);
+            }
+
+            return baseValue;
+        }
+
+        /// <summary>
+        ///     Property which determines if column virtualization is enabled or disabled
+        /// </summary>
+        public bool EnableColumnVirtualization
+        {
+            get { return (bool)GetValue(EnableColumnVirtualizationProperty); }
+            set { SetValue(EnableColumnVirtualizationProperty, value); }
+        }
+
+        /// <summary>
+        ///     Dependency property for EnableColumnVirtualization
+        /// </summary>
+        public static readonly DependencyProperty EnableColumnVirtualizationProperty = DependencyProperty.Register(
+            "EnableColumnVirtualization",
+            typeof(bool),
+            typeof(DataGrid),
+            new FrameworkPropertyMetadata(false, new PropertyChangedCallback(OnEnableColumnVirtualizationChanged)));
+
+        /// <summary>
+        ///     Property changed callback for EnableColumnVirtualization.
+        ///     Gets VirtualizingStackPanel.IsVirtualizingProperty for cells presenter and
+        ///     headers presenter in sync.
+        /// </summary>
+        private static void OnEnableColumnVirtualizationChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            ((DataGrid)d).NotifyPropertyChanged(d, e, NotificationTarget.CellsPresenter | NotificationTarget.ColumnHeadersPresenter | NotificationTarget.ColumnCollection);
+        }
+
         #endregion
 
         #region Column Reordering
@@ -5730,7 +7008,7 @@ namespace Microsoft.Windows.Controls
 
         public event EventHandler<DataGridColumnEventArgs> ColumnReordered;
 
-        internal protected virtual void OnColumnHeaderDragStarted(DragStartedEventArgs e)
+        protected internal virtual void OnColumnHeaderDragStarted(DragStartedEventArgs e)
         {
             if (ColumnHeaderDragStarted != null)
             {
@@ -5738,7 +7016,7 @@ namespace Microsoft.Windows.Controls
             }
         }
 
-        internal protected virtual void OnColumnReordering(DataGridColumnReorderingEventArgs e)
+        protected internal virtual void OnColumnReordering(DataGridColumnReorderingEventArgs e)
         {
             if (ColumnReordering != null)
             {
@@ -5746,7 +7024,7 @@ namespace Microsoft.Windows.Controls
             }
         }
 
-        internal protected virtual void OnColumnHeaderDragDelta(DragDeltaEventArgs e)
+        protected internal virtual void OnColumnHeaderDragDelta(DragDeltaEventArgs e)
         {
             if (ColumnHeaderDragDelta != null)
             {
@@ -5754,7 +7032,7 @@ namespace Microsoft.Windows.Controls
             }
         }
 
-        internal protected virtual void OnColumnHeaderDragCompleted(DragCompletedEventArgs e)
+        protected internal virtual void OnColumnHeaderDragCompleted(DragCompletedEventArgs e)
         {
             if (ColumnHeaderDragCompleted != null)
             {
@@ -5762,7 +7040,7 @@ namespace Microsoft.Windows.Controls
             }
         }
 
-        internal protected virtual void OnColumnReordered(DataGridColumnEventArgs e)
+        protected internal virtual void OnColumnReordered(DataGridColumnEventArgs e)
         {
             if (ColumnReordered != null)
             {
@@ -5825,6 +7103,7 @@ namespace Microsoft.Windows.Controls
             {
                 throw new NotSupportedException(SR.Get(SRID.ClipboardCopyMode_Disabled));
             }
+
             args.Handled = true;
 
             // Supported default formats: Html, Text, UnicodeText and CSV
@@ -5859,7 +7138,9 @@ namespace Microsoft.Windows.Controls
                 for (int i = minRowIndex; i <= maxRowIndex; i++)
                 {
                     object row = Items[i];
-                    if (_selectedCells.Intersects(i)) // Row has a selecion
+
+                    // Row has a selecion
+                    if (_selectedCells.Intersects(i)) 
                     {
                         DataGridRowClipboardEventArgs preparingRowClipboardContentEventArgs = new DataGridRowClipboardEventArgs(row, minColumnDisplayIndex, maxColumnDisplayIndex, false /*IsColumnHeadersRow*/, i);
                         OnCopyingRowClipboardContent(preparingRowClipboardContentEventArgs);
@@ -5881,6 +7162,7 @@ namespace Microsoft.Windows.Controls
                 {
                     dataObject.SetData(format, dataGridStringBuilders[format].ToString(), false /*autoConvert*/);
                 }
+
                 Clipboard.SetDataObject(dataObject);
             }
             catch (SecurityException)
@@ -5907,6 +7189,11 @@ namespace Microsoft.Windows.Controls
                 for (int i = args.StartColumnDisplayIndex; i <= args.EndColumnDisplayIndex; i++)
                 {
                     DataGridColumn column = ColumnFromDisplayIndex(i);
+                    if (!column.IsVisible)
+                    {
+                        continue;
+                    }
+
                     args.ClipboardRowContent.Add(new DataGridClipboardCellContent(args.Item, column, column.Header));
                 }
             }
@@ -5917,11 +7204,18 @@ namespace Microsoft.Windows.Controls
                 {
                     rowIndex = Items.IndexOf(args.Item);
                 }
-                if (_selectedCells.Intersects(rowIndex)) // If row has selection
+
+                // If row has selection
+                if (_selectedCells.Intersects(rowIndex)) 
                 {
                     for (int i = args.StartColumnDisplayIndex; i <= args.EndColumnDisplayIndex; i++)
                     {
                         DataGridColumn column = ColumnFromDisplayIndex(i);
+                        if (!column.IsVisible)
+                        {
+                            continue;
+                        }
+
                         object cellValue = null;
 
                         // Get cell value only if the cell is selected - otherwise leave it null
@@ -5971,6 +7265,7 @@ namespace Microsoft.Windows.Controls
             {
                 return (double)GetValue(CellsPanelActualWidthProperty);
             }
+
             set
             {
                 SetValue(CellsPanelActualWidthProperty, value);
@@ -5994,6 +7289,125 @@ namespace Microsoft.Windows.Controls
 
         #endregion
 
+        #region Column Width Computations
+
+        /// <summary>
+        ///     Dependency Property Key for CellsPanelHorizontalOffset property
+        /// </summary>
+        private static readonly DependencyPropertyKey CellsPanelHorizontalOffsetPropertyKey =
+            DependencyProperty.RegisterReadOnly(
+                "CellsPanelHorizontalOffset", 
+                typeof(double), 
+                typeof(DataGrid),
+                new FrameworkPropertyMetadata(0d, OnNotifyHorizontalOffsetPropertyChanged));
+
+        /// <summary>
+        ///     Dependency Property for CellsPanelHorizontalOffset
+        /// </summary>
+        public static readonly DependencyProperty CellsPanelHorizontalOffsetProperty = CellsPanelHorizontalOffsetPropertyKey.DependencyProperty;
+
+        /// <summary>
+        ///     Property which caches the cells panel horizontal offset
+        /// </summary>
+        public double CellsPanelHorizontalOffset
+        {
+            get { return (double)GetValue(CellsPanelHorizontalOffsetProperty); }
+            private set { SetValue(CellsPanelHorizontalOffsetPropertyKey, value); }
+        }
+
+        /// <summary>
+        ///     Property which indicates whether a request to
+        ///     invalidate CellsPanelOffset is already in queue or not.
+        /// </summary>
+        private bool CellsPanelHorizontalOffsetComputationPending
+        {
+            get;
+            set;
+        }
+
+        /// <summary>
+        ///     Helper method which queue a request to dispatcher to
+        ///     invalidate the cellspanel offset if not already queued
+        /// </summary>
+        internal void QueueInvalidateCellsPanelHorizontalOffset()
+        {
+            if (!CellsPanelHorizontalOffsetComputationPending)
+            {
+                Dispatcher.BeginInvoke(new DispatcherOperationCallback(InvalidateCellsPanelHorizontalOffset), DispatcherPriority.Loaded, this);
+                CellsPanelHorizontalOffsetComputationPending = true;
+            }
+        }
+
+        /// <summary>
+        ///     Dispatcher call back method which recomputes the CellsPanelOffset
+        /// </summary>
+        private object InvalidateCellsPanelHorizontalOffset(object args)
+        {
+            if (!CellsPanelHorizontalOffsetComputationPending)
+            {
+                return null;
+            }
+
+            IProvideDataGridColumn cell = GetAnyCellOrColumnHeader();
+            if (cell != null)
+            {
+                CellsPanelHorizontalOffset = DataGridHelper.GetParentCellsPanelHorizontalOffset(cell);
+            }
+
+            CellsPanelHorizontalOffsetComputationPending = false;
+            return null;
+        }
+
+        /// <summary>
+        /// Helper method which return any one of the cells or column headers
+        /// </summary>
+        /// <returns></returns>
+        internal IProvideDataGridColumn GetAnyCellOrColumnHeader()
+        {
+            if (_rowTrackingRoot != null)
+            {
+                DataGridRow row = _rowTrackingRoot.Container;
+                DataGridCellsPresenter cellsPresenter = row.CellsPresenter;
+                if (cellsPresenter != null)
+                {
+                    ContainerTracking<DataGridCell> cellTracker = cellsPresenter.CellTrackingRoot;
+                    if (cellTracker != null)
+                    {
+                        return cellTracker.Container;
+                    }
+                }
+            }
+
+            if (ColumnHeadersPresenter != null)
+            {
+                ContainerTracking<DataGridColumnHeader> headerTracker = ColumnHeadersPresenter.HeaderTrackingRoot;
+                if (headerTracker != null)
+                {
+                    return headerTracker.Container;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Helper method which returns the width of the viewport which is available for the columns to render
+        /// </summary>
+        /// <returns></returns>
+        internal double GetViewportWidthForColumns()
+        {
+            if (InternalScrollHost == null)
+            {
+                return 0.0;
+            }
+
+            double totalAvailableWidth = InternalScrollHost.ViewportWidth;
+            totalAvailableWidth -= CellsPanelHorizontalOffset;
+            return totalAvailableWidth;
+        }
+
+        #endregion
+
         #region Helpers
 
         // TODO: Consider making this public.
@@ -6006,46 +7420,65 @@ namespace Microsoft.Windows.Controls
 
         #endregion
 
-        #region Native
+        #region Data
+
+        private static ComponentResourceKey _focusBorderBrushKey;           // Used in styles
+        private static IValueConverter _headersVisibilityConverter;         // Used to convert DataGridHeadersVisibility to Visibility in styles
+        private static IValueConverter _rowDetailsScrollingConverter;       // Used to convert boolean (DataGrid.RowDetailsAreFrozen) into a SelectiveScrollingMode
+        private static object _newItemPlaceholder = new object();           // Used as an alternate data item to CollectionView.NewItemPlaceholder
+
+        private DataGridColumnCollection _columns;                          // Stores the columns
+        private ContainerTracking<DataGridRow> _rowTrackingRoot;            // Root of a linked list of active row containers
+        private DataGridColumnHeadersPresenter _columnHeadersPresenter;     // headers presenter for sending down notifications
+        private DataGridCell _currentCellContainer;                         // Reference to the cell container corresponding to CurrentCell (use CurrentCellContainer property instead)
+        private DataGridCell _pendingCurrentCellContainer;                  // Reference to the cell container that will become the current cell
+        private SelectedCellsCollection _selectedCells;                     // Stores the selected cells
+        private Nullable<DataGridCellInfo> _selectionAnchor;                // For doing extended selection
+        private bool _isDraggingSelection;                                  // Whether a drag select is being performed
+        private bool _isRowDragging;                                        // Whether a drag select is being done on rows
+        private Panel _internalItemsHost;                                   // Workaround for not having access to ItemsHost
+        private ScrollViewer _internalScrollHost;                           // Scroll viewer of the datagrid
+        private ScrollContentPresenter _internalScrollContentPresenter = null; // Scroll Content Presenter of DataGrid's ScrollViewer
+        private DispatcherTimer _autoScrollTimer;                           // Timer to tick auto-scroll
+        private bool _hasAutoScrolled;                                      // Whether an auto-scroll has occurred since starting the tick
+        private VirtualizedCellInfoCollection _pendingSelectedCells;        // Cells that were selected that haven't gone through SelectedCellsChanged
+        private VirtualizedCellInfoCollection _pendingUnselectedCells;      // Cells that were unselected that haven't gone through SelectedCellsChanged
+        private bool _deferAutoGeneration = false;                          // The flag which determines whether the columns generation is deferred
+        private bool _measureNeverInvoked = true;                           // Flag used to track if measure was invoked atleast once. Particularly used for AutoGeneration.
+        private bool _updatingSelectedCells = false;                        // Whether to defer notifying that SelectedCells changed.
+        private Visibility _placeholderVisibility = Visibility.Collapsed;   // The visibility used for the Placeholder container.  It may not exist at all times, so it's stored on the DG.
+        private Point _dragPoint;                                           // Used to detect if a drag actually occurred
+        private List<int> _groupingSortDescriptionIndices = null;           // List to hold the indices of SortDescriptions added for the sake of GroupDescriptions.
+        private bool _ignoreSortDescriptionsChange = false;                 // Flag used to neglect the SortDescriptionCollection changes in the CollectionChanged listener.
+        private bool _sortingStarted = false;                               // Flag used to track if Sorting ever started or not.
+        private ObservableCollection<ValidationRule> _rowValidationRules;   // Stores the row ValidationRule's
+        private BindingGroup _rowValidationBindingGroup;                    // Cached copy of the BindingGroup created for row validation...so we dont stomp on user set ItemBindingGroup
+        private object _editingRowItem = null;                              // Current editing row item
+        private int _editingRowIndex = -1;                                  // Current editing row index
+        private bool _hasCellValidationError;                               // An unsuccessful cell commit occurred
+        private bool _hasRowValidationError;                                // An unsuccessful row commit occurred
+        private IEnumerable _cachedItemsSource = null;                      // Reference to the ItemsSource instance, used to clear SortDescriptions on ItemsSource change
+        private DataGridItemAttachedStorage _itemAttachedStorage = new DataGridItemAttachedStorage(); // Holds data about the items that's need for row virtualization
+        private bool _viewportWidthChangeNotificationPending = false;       // Flag to indicate if a viewport width change reuest is already queued.
+        private double _originalViewportWidth = 0.0;                        // Holds the original viewport width between multiple viewport width changes
+        private double _finalViewportWidth = 0.0;                           // Holds the final viewport width between multiple viewport width changes
+
+        #endregion
+
+        #region Constants
+        private const string ItemsPanelPartName = "PART_RowsPresenter";
+        #endregion
+    }
+
+    internal class NativeMethods
+    {
+        // Private constructor for performance only
+        private NativeMethods()
+        {
+        }
 
         // Used for AutoScrollTimeout
         [DllImport("User32.dll", ExactSpelling = true, CharSet = CharSet.Auto)]
-        private static extern int GetDoubleClickTime();
-
-        #endregion
-
-        #region Data
-
-        private static ComponentResourceKey             _focusBorderBrushKey;           // Used in styles
-        private static IValueConverter                  _headersVisibilityConverter;    // Used to convert DataGridHeadersVisibility to Visibility in styles
-
-        private static object                           _newItemPlaceholder = new object(); // Used as an alternate data item to CollectionView.NewItemPlaceholder
-
-        private DataGridColumnCollection                _columns;                       // Stores the columns
-        private ContainerTracking<DataGridRow>          _rowTrackingRoot;               // Root of a linked list of active row containers
-        private DataGridColumnHeadersPresenter          _columnHeadersPresenter;        // headers presenter for sending down notifications
-        private DataGridCell                            _currentCellContainer;          // Reference to the cell container corresponding to CurrentCell (use CurrentCellContainer property instead)
-        private DataGridCell                            _pendingCurrentCellContainer;   // Reference to the cell container that will become the current cell
-        private SelectedCellsCollection                 _selectedCells;                 // Stores the selected cells
-        private Nullable<DataGridCellInfo>              _selectionAnchor;               // For doing extended selection
-        private bool                                    _isDraggingSelection;           // Whether a drag select is being performed
-        private bool                                    _isRowDragging;                 // Whether a drag select is being done on rows
-        private Panel                                   _internalItemsHost;             // Workaround for not having access to ItemsHost
-        private ScrollViewer                            _internalScrollHost;            // Scroll viewer of the datagrid
-        private DispatcherTimer                         _autoScrollTimer;               // Timer to tick auto-scroll
-        private bool                                    _hasAutoScrolled;               // Whether an auto-scroll has occurred since starting the tick
-        private VirtualizedCellInfoCollection           _pendingSelectedCells;          // Cells that were selected that haven't gone through SelectedCellsChanged
-        private VirtualizedCellInfoCollection           _pendingUnselectedCells;        // Cells that were unselected that haven't gone through SelectedCellsChanged
-        private bool                                    _deferAutoGeneration = false;   // The flag which determines whether the columns generation is deferred
-        private bool                                    _measureNeverInvoked = true;    // Flag used to track if measure was invoked atleast once. Particularly used for AutoGeneration.
-        private bool                                    _updatingSelectedCells = false; // Whether to defer notifying that SelectedCells changed.
-        private Visibility                              _previousPlaceholderVisibility = Visibility.Visible;    // The visibility used before hiding the NewItemPlaceholder during an edit.
-        private Visibility                              _placeholderVisibility         = Visibility.Visible;    // The visibility used for the Placeholder container.  It may not exist at all times, so it's stored on the DG.
-        private Point                                   _dragPoint;                     // Used to detect if a drag actually occurred
-        private List<int>                               _groupingSortDescriptionIndices = null; // List to hold the indices of SortDescriptions added for the sake of GroupDescriptions.
-        private bool                                    _ignoreSortDescriptionsChange = false;  // Flag used to neglect the SortDescriptionCollection changes in the CollectionChanged listener.
-        private bool                                    _sortingStarted = false;                // Flag used to track if Sorting ever started or not.
-
-        #endregion
+        internal static extern int GetDoubleClickTime();
     }
 }

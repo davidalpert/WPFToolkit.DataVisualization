@@ -39,6 +39,7 @@ namespace Microsoft.Windows.Controls
             {
                 return _cancel;
             }
+
             set
             {
                 _cancel = value;
@@ -54,6 +55,7 @@ namespace Microsoft.Windows.Controls
             {
                 return _dropLocationIndicator;
             }
+
             set
             {
                 _dropLocationIndicator = value;
@@ -69,6 +71,7 @@ namespace Microsoft.Windows.Controls
             {
                 return _dragIndicator;
             }
+
             set
             {
                 _dragIndicator = value;
@@ -79,7 +82,7 @@ namespace Microsoft.Windows.Controls
 
         #region Data
 
-        private bool _cancel = false;
+        private bool _cancel;
         private Control _dropLocationIndicator;
         private Control _dragIndicator;
 

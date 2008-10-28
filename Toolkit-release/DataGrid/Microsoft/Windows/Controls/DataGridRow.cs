@@ -5,15 +5,20 @@
 //---------------------------------------------------------------------------
 
 using System;
-using System.ComponentModel;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Windows;
+using System.Windows.Automation.Peers;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
-using System.Windows.Media;
 using System.Windows.Data;
+using System.Windows.Media;
+using System.Windows.Threading;
+using Microsoft.Windows.Automation.Peers;
+using Microsoft.Windows.Controls.Primitives;
+using MS.Internal;
 
 namespace Microsoft.Windows.Controls
 {
@@ -34,10 +39,12 @@ namespace Microsoft.Windows.Controls
         /// </summary>
         static DataGridRow()
         {
+            VisibilityProperty.OverrideMetadata(typeof(DataGridRow), new FrameworkPropertyMetadata(null, OnCoerceVisibility));
             DefaultStyleKeyProperty.OverrideMetadata(typeof(DataGridRow), new FrameworkPropertyMetadata(typeof(DataGridRow)));
             ItemsPanelProperty.OverrideMetadata(typeof(DataGridRow), new FrameworkPropertyMetadata(new ItemsPanelTemplate(new FrameworkElementFactory(typeof(DataGridCellsPanel)))));
             FocusableProperty.OverrideMetadata(typeof(DataGridRow), new FrameworkPropertyMetadata(false));
             BackgroundProperty.OverrideMetadata(typeof(DataGridRow), new FrameworkPropertyMetadata(null, OnNotifyRowPropertyChanged, OnCoerceBackground));
+            BindingGroupProperty.OverrideMetadata(typeof(DataGridRow), new FrameworkPropertyMetadata(OnNotifyRowPropertyChanged));
 
             // Set SnapsToDevicePixels to true so that this element can draw grid lines.  The metadata options are so that the property value doesn't inherit down the tree from here.
             SnapsToDevicePixelsProperty.OverrideMetadata(typeof(DataGridRow), new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.AffectsArrange));
@@ -83,6 +90,13 @@ namespace Microsoft.Windows.Controls
             {
                 cellsPresenter.Item = newItem;
             }
+
+            // Update the event source if AutomationPeer exist
+            DataGridRowAutomationPeer peer = UIElementAutomationPeer.FromElement(this) as DataGridRowAutomationPeer;
+            if (peer != null)
+            {
+                peer.UpdateEventSource();
+            }
         }
 
         #endregion
@@ -105,6 +119,16 @@ namespace Microsoft.Windows.Controls
         ///     The DependencyProperty that represents the ItemsPanel property.
         /// </summary>
         public static readonly DependencyProperty ItemsPanelProperty = ItemsControl.ItemsPanelProperty.AddOwner(typeof(DataGridRow));
+
+        /// <summary>
+        ///     Clears the CellsPresenter and DetailsPresenter references on Template change.
+        /// </summary>
+        protected override void OnTemplateChanged(ControlTemplate oldTemplate, ControlTemplate newTemplate)
+        {
+            base.OnTemplateChanged(oldTemplate, newTemplate);
+            CellsPresenter = null;
+            DetailsPresenter = null;
+        }
 
         #endregion
 
@@ -134,7 +158,6 @@ namespace Microsoft.Windows.Controls
         {   
         }
 
-
         /// <summary>
         ///     The object representing the Row Header style.  
         /// </summary>
@@ -163,8 +186,7 @@ namespace Microsoft.Windows.Controls
         ///     The DependencyProperty for the HeaderTemplate property.
         /// </summary>
         public static readonly DependencyProperty HeaderTemplateProperty =
-            DependencyProperty.Register("HeaderTemplate", typeof(DataTemplate), typeof(DataGridRow), new FrameworkPropertyMetadata(null, new PropertyChangedCallback(OnNotifyRowAndRowHeaderPropertyChanged)));
-
+            DependencyProperty.Register("HeaderTemplate", typeof(DataTemplate), typeof(DataGridRow), new FrameworkPropertyMetadata(null, OnNotifyRowAndRowHeaderPropertyChanged, OnCoerceHeaderTemplate));
 
         /// <summary>
         ///     The object representing the Row Header template selector.  
@@ -179,8 +201,91 @@ namespace Microsoft.Windows.Controls
         ///     The DependencyProperty for the HeaderTemplateSelector property.
         /// </summary>
         public static readonly DependencyProperty HeaderTemplateSelectorProperty =
-            DependencyProperty.Register("HeaderTemplateSelector", typeof(DataTemplateSelector), typeof(DataGridRow), new FrameworkPropertyMetadata(null, new PropertyChangedCallback(OnNotifyRowAndRowHeaderPropertyChanged)));
+            DependencyProperty.Register("HeaderTemplateSelector", typeof(DataTemplateSelector), typeof(DataGridRow), new FrameworkPropertyMetadata(null, OnNotifyRowAndRowHeaderPropertyChanged, OnCoerceHeaderTemplateSelector));
 
+        /// <summary>
+        /// Template used to visually indicate an error in row Validation.
+        /// </summary>
+        public ControlTemplate ValidationErrorTemplate
+        {
+            get { return (ControlTemplate)GetValue(ValidationErrorTemplateProperty); }
+            set { SetValue(ValidationErrorTemplateProperty, value); }
+        }
+
+        /// <summary>
+        ///     DependencyProperty for the ValidationErrorTemplate property.
+        /// </summary>
+        public static readonly DependencyProperty ValidationErrorTemplateProperty =
+            DependencyProperty.Register("ValidationErrorTemplate", typeof(ControlTemplate), typeof(DataGridRow), new FrameworkPropertyMetadata(null, OnNotifyRowPropertyChanged, OnCoerceValidationErrorTemplate));
+
+        #endregion
+
+        #region Row Details
+
+        /// <summary>
+        ///     The object representing the Row Details template.  
+        /// </summary>
+        public DataTemplate DetailsTemplate
+        {
+            get { return (DataTemplate)GetValue(DetailsTemplateProperty); }
+            set { SetValue(DetailsTemplateProperty, value); }
+        }
+
+        /// <summary>
+        ///     The DependencyProperty for the DetailsTemplate property.
+        /// </summary>
+        public static readonly DependencyProperty DetailsTemplateProperty =
+            DependencyProperty.Register("DetailsTemplate", typeof(DataTemplate), typeof(DataGridRow), new FrameworkPropertyMetadata(null, OnNotifyRowAndDetailsPropertyChanged, OnCoerceDetailsTemplate));
+
+        /// <summary>
+        ///     The object representing the Row Details template selector.  
+        /// </summary>
+        public DataTemplateSelector DetailsTemplateSelector
+        {
+            get { return (DataTemplateSelector)GetValue(DetailsTemplateSelectorProperty); }
+            set { SetValue(DetailsTemplateSelectorProperty, value); }
+        }
+
+        /// <summary>
+        ///     The DependencyProperty for the DetailsTemplateSelector property.
+        /// </summary>
+        public static readonly DependencyProperty DetailsTemplateSelectorProperty =
+            DependencyProperty.Register("DetailsTemplateSelector", typeof(DataTemplateSelector), typeof(DataGridRow), new FrameworkPropertyMetadata(null, OnNotifyRowAndDetailsPropertyChanged, OnCoerceDetailsTemplateSelector));
+
+        /// <summary>
+        ///     The Visibility of the Details presenter
+        /// </summary>
+        public Visibility DetailsVisibility
+        {
+            get { return (Visibility)GetValue(DetailsVisibilityProperty); }
+            set { SetValue(DetailsVisibilityProperty, value); }
+        }
+
+        /// <summary>
+        ///     The DependencyProperty for the DetailsVisibility property.
+        /// </summary>
+        public static readonly DependencyProperty DetailsVisibilityProperty =
+            DependencyProperty.Register("DetailsVisibility", typeof(Visibility), typeof(DataGridRow), new FrameworkPropertyMetadata(Visibility.Collapsed, OnNotifyDetailsVisibilityChanged, OnCoerceDetailsVisibility));
+
+        internal enum RowDetailsEventStatus : byte
+        {
+            Disabled, // LoadingRowDetails should not be fired in response to changes to DetailsVisibilty.
+            Pending,  // LoadingRowDetails can be called if the row is loaded or if DetailsVisibilty becomes visible.
+            Loaded,   // LoadingRowDetails has been called and UnloadingRowDetails can be called.
+        }
+
+        internal RowDetailsEventStatus DetailsEventStatus
+        {
+            get
+            {
+                return _detailsEventStatus;
+            }
+
+            set
+            {
+                _detailsEventStatus = value;
+            }
+        }
 
         #endregion
 
@@ -212,12 +317,19 @@ namespace Microsoft.Windows.Controls
         {
             bool fireOwnerChanged = (_owner != owningDataGrid);
             Debug.Assert(_owner == null || _owner == owningDataGrid, "_owner should be null before PrepareRow is called or the same as the owningDataGrid.");
-
+            bool forcePrepareCells = false;
             _owner = owningDataGrid;
 
             if (this != item)
             {
-                Item = item;
+                if (Item != item)
+                {
+                    Item = item;
+                }
+                else
+                {
+                    forcePrepareCells = true;
+                }
             }
 
             if (IsEditing)
@@ -226,27 +338,54 @@ namespace Microsoft.Windows.Controls
                 IsEditing = false;
             }
 
-            if (item == CollectionView.NewItemPlaceholder)
-            {
-                Visibility = owningDataGrid.PlaceholderVisibility;
-            }
-
             // Since we just changed _owner we need to invalidate all child properties that rely on a value supplied by the DataGrid.
             // A common scenario is when a recycled Row was detached from the visual tree and has just been reattached (we always clear out the 
             // owner when recycling a container).
             if (fireOwnerChanged)
             {
-                SyncProperties();
+                SyncProperties(forcePrepareCells);
             }
+
+            // Re-run validation, but wait until Binding has occured.
+            Dispatcher.BeginInvoke(new DispatcherOperationCallback(DelayedValidateWithoutUpdate), DispatcherPriority.DataBind, BindingGroup);
         }
 
         /// <summary>
         ///     Clears the row of references.
         /// </summary>
-        internal void ClearRow(object item, DataGrid owningDataGrid)
+        internal void ClearRow(DataGrid owningDataGrid)
         {
             Debug.Assert(_owner == owningDataGrid, "_owner should be the same as the DataGrid that is clearing the row.");
+
+            var cellsPresenter = CellsPresenter;
+            if (cellsPresenter != null)
+            {
+                PersistAttachedItemValue(cellsPresenter, DataGridCellsPresenter.HeightProperty);
+            }
+
+            PersistAttachedItemValue(this, DetailsVisibilityProperty);
+
             _owner = null;
+        }
+
+        private void PersistAttachedItemValue(DependencyObject objectWithProperty, DependencyProperty property)
+        {
+            ValueSource valueSource = DependencyPropertyHelper.GetValueSource(objectWithProperty, property);
+            if (valueSource.BaseValueSource == BaseValueSource.Local)
+            {
+                // attach the local value to the item so it can be restored later.
+                _owner.ItemAttachedStorage.SetValue(Item, property, objectWithProperty.GetValue(property));
+                objectWithProperty.ClearValue(property);
+            }
+        }
+
+        private void RestoreAttachedItemValue(DependencyObject objectWithProperty, DependencyProperty property)
+        {
+            object value;
+            if (_owner.ItemAttachedStorage.TryGetValue(Item, property, out value))
+            {
+                objectWithProperty.SetValue(property, value);
+            }
         }
 
         /// <summary>
@@ -255,6 +394,66 @@ namespace Microsoft.Windows.Controls
         internal ContainerTracking<DataGridRow> Tracker
         {
             get { return _tracker; }
+        }
+
+        #endregion
+
+        #region Row Resizing
+
+        internal void OnRowResizeStarted()
+        {
+            var cellsPresenter = CellsPresenter;
+            if (cellsPresenter != null)
+            {
+                _cellsPresenterResizeHeight = cellsPresenter.Height;
+            }
+        }
+
+        internal void OnRowResize(double changeAmount)
+        {
+            var cellsPresenter = CellsPresenter;
+            if (cellsPresenter != null)
+            {
+                double newHeight = cellsPresenter.ActualHeight + changeAmount;
+
+                // clamp the CellsPresenter size to the RowHeader size or MinHeight because the header wont shrink any smaller.
+                double minHeight = Math.Max(RowHeader.DesiredSize.Height, MinHeight);
+                if (DoubleUtil.LessThan(newHeight, minHeight))
+                {
+                    newHeight = minHeight;
+                }
+
+                // clamp the CellsPresenter size to the MaxHeight of Row, because row wouldn't grow any larger
+                double maxHeight = MaxHeight;
+                if (DoubleUtil.GreaterThan(newHeight, maxHeight))
+                {
+                    newHeight = maxHeight;
+                }
+
+                cellsPresenter.Height = newHeight;
+            }
+        }
+
+        internal void OnRowResizeCompleted(bool canceled)
+        {
+            var cellsPresenter = CellsPresenter;
+            if (cellsPresenter != null && canceled)
+            {
+                cellsPresenter.Height = _cellsPresenterResizeHeight;
+            }
+        }
+
+        internal void OnRowResizeReset()
+        {
+            var cellsPresenter = CellsPresenter;
+            if (cellsPresenter != null)
+            {
+                cellsPresenter.ClearValue(DataGridCellsPresenter.HeightProperty);
+                if (_owner != null)
+                {
+                    _owner.ItemAttachedStorage.ClearValue(Item, DataGridCellsPresenter.HeightProperty);
+                }
+            }
         }
 
         #endregion
@@ -281,33 +480,150 @@ namespace Microsoft.Windows.Controls
 
         private static object OnCoerceHeaderStyle(DependencyObject d, object baseValue)
         {
-            var row = d as DataGridRow;
-            return DataGridHelper.GetCoercedTransferPropertyValue(row, baseValue, HeaderStyleProperty,
-                                                                  row.DataGridOwner, DataGrid.RowHeaderStyleProperty,
-                                                                  null, null);
+            var row = (DataGridRow)d;
+            return DataGridHelper.GetCoercedTransferPropertyValue(
+                row, 
+                baseValue, 
+                HeaderStyleProperty,
+                row.DataGridOwner, 
+                DataGrid.RowHeaderStyleProperty);
+        }
+
+        private static object OnCoerceHeaderTemplate(DependencyObject d, object baseValue)
+        {
+            var row = (DataGridRow)d;
+            return DataGridHelper.GetCoercedTransferPropertyValue(
+                row, 
+                baseValue, 
+                HeaderTemplateProperty,
+                row.DataGridOwner, 
+                DataGrid.RowHeaderTemplateProperty);
+        }
+
+        private static object OnCoerceHeaderTemplateSelector(DependencyObject d, object baseValue)
+        {
+            var row = (DataGridRow)d;
+            return DataGridHelper.GetCoercedTransferPropertyValue(
+                row, 
+                baseValue, 
+                HeaderTemplateSelectorProperty,
+                row.DataGridOwner, 
+                DataGrid.RowHeaderTemplateSelectorProperty);
         }
 
         private static object OnCoerceBackground(DependencyObject d, object baseValue)
         {
-            var row = d as DataGridRow;
+            var row = (DataGridRow)d;
             object coercedValue = baseValue;
 
             switch (row.AlternationIndex)
             {
                 case 0:
-                    coercedValue = DataGridHelper.GetCoercedTransferPropertyValue(row, baseValue, BackgroundProperty,
-                                                                                  row.DataGridOwner, DataGrid.RowBackgroundProperty,
-                                                                                  null, null);
+                    coercedValue = DataGridHelper.GetCoercedTransferPropertyValue(
+                        row, 
+                        baseValue, 
+                        BackgroundProperty,
+                        row.DataGridOwner, 
+                        DataGrid.RowBackgroundProperty);
+
                     break;
                 case 1:
-                    coercedValue = DataGridHelper.GetCoercedTransferPropertyValue(row, baseValue, BackgroundProperty,
-                                                                                  row.DataGridOwner, DataGrid.AlternatingRowBackgroundProperty,
-                                                                                  null, null);
+                    coercedValue = DataGridHelper.GetCoercedTransferPropertyValue(
+                        row, 
+                        baseValue, 
+                        BackgroundProperty,
+                        row.DataGridOwner, 
+                        DataGrid.AlternatingRowBackgroundProperty);
+
                     break;
             }
 
-            return coercedValue;
-                
+            return coercedValue;       
+        }
+
+        private static object OnCoerceValidationErrorTemplate(DependencyObject d, object baseValue)
+        {
+            var row = (DataGridRow)d;
+            return DataGridHelper.GetCoercedTransferPropertyValue(
+                row, 
+                baseValue, 
+                ValidationErrorTemplateProperty,
+                row.DataGridOwner, 
+                DataGrid.RowValidationErrorTemplateProperty);
+        }
+
+        private static object OnCoerceDetailsTemplate(DependencyObject d, object baseValue)
+        {
+            var row = (DataGridRow)d;
+            return DataGridHelper.GetCoercedTransferPropertyValue(
+                row, 
+                baseValue, 
+                DetailsTemplateProperty,
+                row.DataGridOwner, 
+                DataGrid.RowDetailsTemplateProperty);
+        }
+
+        private static object OnCoerceDetailsTemplateSelector(DependencyObject d, object baseValue)
+        {
+            var row = (DataGridRow)d;
+            return DataGridHelper.GetCoercedTransferPropertyValue(
+                row, 
+                baseValue, 
+                DetailsTemplateSelectorProperty,
+                row.DataGridOwner, 
+                DataGrid.RowDetailsTemplateSelectorProperty);
+        }
+
+        private static object OnCoerceDetailsVisibility(DependencyObject d, object baseValue)
+        {
+            var row = (DataGridRow)d;
+            object visibility = DataGridHelper.GetCoercedTransferPropertyValue(
+                row, 
+                baseValue, 
+                DetailsVisibilityProperty,
+                row.DataGridOwner, 
+                DataGrid.RowDetailsVisibilityModeProperty);
+
+            if (visibility is DataGridRowDetailsVisibilityMode)
+            {
+                var visibilityMode = (DataGridRowDetailsVisibilityMode)visibility;
+                var hasDetailsTemplate = row.DetailsTemplate != null || row.DetailsTemplateSelector != null;
+                var isRealItem = row.Item != CollectionView.NewItemPlaceholder;
+                switch (visibilityMode)
+                {
+                    case DataGridRowDetailsVisibilityMode.Collapsed:
+                        visibility = Visibility.Collapsed;
+                        break;
+                    case DataGridRowDetailsVisibilityMode.Visible:
+                        visibility = hasDetailsTemplate && isRealItem ? Visibility.Visible : Visibility.Collapsed;
+                        break;
+                    case DataGridRowDetailsVisibilityMode.VisibleWhenSelected:
+                        visibility = row.IsSelected && hasDetailsTemplate && isRealItem ? Visibility.Visible : Visibility.Collapsed;
+                        break;
+                    default:
+                        visibility = Visibility.Collapsed;
+                        break;
+                }
+            }
+
+            return visibility;
+        }
+
+        /// <summary>
+        ///     Coerces Visibility so that the NewItemPlaceholder doesn't show up while you're entering a new Item
+        /// </summary>
+        private static object OnCoerceVisibility(DependencyObject d, object baseValue)
+        {
+            var row = (DataGridRow)d;
+            var owningDataGrid = row.DataGridOwner;
+            if (row.Item == CollectionView.NewItemPlaceholder && owningDataGrid != null)
+            {
+                return owningDataGrid.PlaceholderVisibility;
+            }
+            else
+            {
+                return baseValue;
+            }
         }
 
         #endregion
@@ -324,8 +640,40 @@ namespace Microsoft.Windows.Controls
             (d as DataGridRow).NotifyPropertyChanged(d, e, NotificationTarget.Rows | NotificationTarget.RowHeaders);
         }
 
+        private static void OnNotifyRowAndDetailsPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            (d as DataGridRow).NotifyPropertyChanged(d, e, NotificationTarget.Rows | NotificationTarget.DetailsPresenter);
+        }
+
+        private static void OnNotifyDetailsVisibilityChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var row = (DataGridRow)d;
+
+            // Notify the DataGrid at Loaded priority so the template has time to expland.
+            Dispatcher.CurrentDispatcher.BeginInvoke(new DispatcherOperationCallback(DelayedRowDetailsVisibilityChanged), DispatcherPriority.Loaded, row);
+
+            row.NotifyPropertyChanged(d, e, NotificationTarget.Rows | NotificationTarget.DetailsPresenter);
+        }
+
         /// <summary>
-        /// Set by the CellsPresenter when it is created.  Used by the Row to send down property change notifications.
+        ///     Notifies the DataGrid that the visibility is changed.  This is intended to be Invoked at lower than Layout priority to give the template time to expand.
+        /// </summary>
+        private static object DelayedRowDetailsVisibilityChanged(object arg)
+        {
+            var row = (DataGridRow)arg;
+            var dataGrid = row.DataGridOwner;
+            var detailsElement = row.DetailsPresenter != null ? row.DetailsPresenter.DetailsElement : null;
+            if (dataGrid != null)
+            {
+                var detailsEventArgs = new DataGridRowDetailsEventArgs(row, detailsElement);
+                dataGrid.OnRowDetailsVisibilityChanged(detailsEventArgs);
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        ///     Set by the CellsPresenter when it is created.  Used by the Row to send down property change notifications.
         /// </summary>
         internal DataGridCellsPresenter CellsPresenter
         {
@@ -333,19 +681,17 @@ namespace Microsoft.Windows.Controls
             set { _cellsPresenter = value; }
         }
 
-
         /// <summary>
-        /// Set by the DetailsPresenter when it is created.  Used by the Row to send down property change notifications.
+        ///     Set by the DetailsPresenter when it is created.  Used by the Row to send down property change notifications.
         /// </summary>
         internal DataGridDetailsPresenter DetailsPresenter
         {
-            private get { return _detailsPresenter; }
+            get { return _detailsPresenter; }
             set { _detailsPresenter = value; }
         }
 
-
         /// <summary>
-        /// Set by the RowHeader when it is created.  Used by the Row to send down property change notifications.
+        ///     Set by the RowHeader when it is created.  Used by the Row to send down property change notifications.
         /// </summary>
         internal DataGridRowHeader RowHeader
         {
@@ -377,18 +723,47 @@ namespace Microsoft.Windows.Controls
                 {
                     DataGridHelper.TransferProperty(this, HeaderStyleProperty);
                 }
-                else if (e.Property == DataGridRow.ItemProperty)
+                else if (e.Property == DataGrid.RowHeaderTemplateProperty || e.Property == HeaderTemplateProperty)
+                {
+                    DataGridHelper.TransferProperty(this, HeaderTemplateProperty);
+                }
+                else if (e.Property == DataGrid.RowHeaderTemplateSelectorProperty || e.Property == HeaderTemplateSelectorProperty)
+                {
+                    DataGridHelper.TransferProperty(this, HeaderTemplateSelectorProperty);
+                }
+                else if (e.Property == DataGrid.RowValidationErrorTemplateProperty || e.Property == ValidationErrorTemplateProperty)
+                {
+                    DataGridHelper.TransferProperty(this, ValidationErrorTemplateProperty);
+                }
+                else if (e.Property == DataGrid.RowDetailsTemplateProperty || e.Property == DetailsTemplateProperty)
+                {
+                    DataGridHelper.TransferProperty(this, DetailsTemplateProperty);
+                    DataGridHelper.TransferProperty(this, DetailsVisibilityProperty);
+                }
+                else if (e.Property == DataGrid.RowDetailsTemplateSelectorProperty || e.Property == DetailsTemplateSelectorProperty)
+                {
+                    DataGridHelper.TransferProperty(this, DetailsTemplateSelectorProperty);
+                    DataGridHelper.TransferProperty(this, DetailsVisibilityProperty);
+                }
+                else if (e.Property == DataGrid.RowDetailsVisibilityModeProperty || e.Property == DetailsVisibilityProperty || e.Property == IsSelectedProperty)
+                {
+                    DataGridHelper.TransferProperty(this, DetailsVisibilityProperty);
+                }
+                else if (e.Property == ItemProperty)
                 {
                     OnItemChanged(e.OldValue, e.NewValue);
                 }
-                else if (e.Property == DataGridRow.HeaderProperty)
+                else if (e.Property == HeaderProperty)
                 {
                     OnHeaderChanged(e.OldValue, e.NewValue);
                 }
+                else if (e.Property == BindingGroupProperty)
+                {
+                    // Re-run validation, but wait until Binding has occured.
+                    Dispatcher.BeginInvoke(new DispatcherOperationCallback(DelayedValidateWithoutUpdate), DispatcherPriority.DataBind, e.NewValue);
+                }
             }
 
-            // TODO: No properties that notify the DetailsPresenter yet
-#if NotifyDetailsPresenter
             if (DataGridHelper.ShouldNotifyDetailsPresenter(target))
             {
                 if (DetailsPresenter != null)
@@ -396,7 +771,6 @@ namespace Microsoft.Windows.Controls
                     DetailsPresenter.NotifyPropertyChanged(d, e);
                 }
             }
-#endif
 
             if (DataGridHelper.ShouldNotifyCellsPresenter(target) || 
                 DataGridHelper.ShouldNotifyCells(target) ||
@@ -415,6 +789,17 @@ namespace Microsoft.Windows.Controls
             }
         }
 
+        private object DelayedValidateWithoutUpdate(object arg)
+        {
+            // Only validate if we have an Item.
+            var bindingGroup = (BindingGroup)arg;
+            if (bindingGroup != null && bindingGroup.Items.Count > 0)
+            {
+                bindingGroup.ValidateWithoutUpdate();
+            }
+
+            return null;
+        }
 
         /// <summary>
         ///     Fired when the Row is attached to the DataGrid.  The scenario here is if the user is scrolling and
@@ -434,17 +819,28 @@ namespace Microsoft.Windows.Controls
         ///     or not the Grid's property is the one that's winning.  If not, no need to redo the coercion.  This notification 
         ///     is pretty fast already and thus not worth the work for now.
         /// </remarks>
-        private void SyncProperties()
+        private void SyncProperties(bool forcePrepareCells)
         {
             // Coerce all properties on Row that depend on values from the DataGrid
             // Style is ok since it's equivalent to ItemContainerStyle and has already been invalidated.
-
             DataGridHelper.TransferProperty(this, BackgroundProperty);
             DataGridHelper.TransferProperty(this, HeaderStyleProperty);
+            DataGridHelper.TransferProperty(this, HeaderTemplateProperty);
+            DataGridHelper.TransferProperty(this, HeaderTemplateSelectorProperty);
+            DataGridHelper.TransferProperty(this, ValidationErrorTemplateProperty);
+            DataGridHelper.TransferProperty(this, DetailsTemplateProperty);
+            DataGridHelper.TransferProperty(this, DetailsTemplateSelectorProperty);
+            DataGridHelper.TransferProperty(this, DetailsVisibilityProperty);
 
-            if (CellsPresenter != null)
+            CoerceValue(VisibilityProperty); // Handle NewItemPlaceholder case
+
+            RestoreAttachedItemValue(this, DetailsVisibilityProperty);
+
+            var cellsPresenter = CellsPresenter;
+            if (cellsPresenter != null)
             {
-                CellsPresenter.SyncProperties();
+                cellsPresenter.SyncProperties(forcePrepareCells);
+                RestoreAttachedItemValue(cellsPresenter, DataGridCellsPresenter.HeightProperty);
             }
 
             if (DetailsPresenter != null)
@@ -506,11 +902,9 @@ namespace Microsoft.Windows.Controls
         /// <summary>
         ///     The DependencyProperty for the IsSelected property.
         /// </summary>
-        public static readonly DependencyProperty IsSelectedProperty =
-                Selector.IsSelectedProperty.AddOwner(typeof(DataGridRow),
-                        new FrameworkPropertyMetadata(false,
-                                FrameworkPropertyMetadataOptions.BindsTwoWayByDefault | FrameworkPropertyMetadataOptions.Journal,
-                                new PropertyChangedCallback(OnIsSelectedChanged)));
+        public static readonly DependencyProperty IsSelectedProperty = Selector.IsSelectedProperty.AddOwner(
+            typeof(DataGridRow), 
+            new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault | FrameworkPropertyMetadataOptions.Journal, new PropertyChangedCallback(OnIsSelectedChanged)));
 
         private static void OnIsSelectedChanged(object sender, DependencyPropertyChangedEventArgs e)
         {
@@ -522,10 +916,25 @@ namespace Microsoft.Windows.Controls
                 throw new InvalidOperationException(SR.Get(SRID.DataGridRow_CannotSelectRowWhenCells));
             }
 
-            // TODO: Fire automation event
+            DataGrid grid = row.DataGridOwner;
+            if (grid != null && row.DataContext != null)
+            {
+                DataGridAutomationPeer gridPeer = UIElementAutomationPeer.FromElement(grid) as DataGridAutomationPeer;
+                if (gridPeer != null)
+                {
+                    DataGridItemAutomationPeer rowItemPeer = gridPeer.GetOrCreateItemPeer(row.DataContext);
+                    if (rowItemPeer != null)
+                    {
+                        rowItemPeer.RaisePropertyChangedEvent(
+                            System.Windows.Automation.SelectionItemPatternIdentifiers.IsSelectedProperty,
+                            (bool)e.OldValue, 
+                            isSelected);
+                    }
+                }
+            }
 
             // Update the header's IsRowSelected property
-            row.NotifyPropertyChanged(row, e, NotificationTarget.RowHeaders);
+            row.NotifyPropertyChanged(row, e, NotificationTarget.Rows | NotificationTarget.RowHeaders);
 
             // This will raise the appropriate selection event, which will
             // bubble to the DataGrid. The base class Selector code will listen
@@ -544,6 +953,7 @@ namespace Microsoft.Windows.Controls
                 OnUnselected(new RoutedEventArgs(UnselectedEvent, this));
             }
         }
+
         /// <summary>
         ///     Raised when the item's IsSelected property becomes true.
         /// </summary>
@@ -558,6 +968,7 @@ namespace Microsoft.Windows.Controls
             {
                 AddHandler(SelectedEvent, value);
             }
+
             remove
             {
                 RemoveHandler(SelectedEvent, value);
@@ -587,6 +998,7 @@ namespace Microsoft.Windows.Controls
             {
                 AddHandler(UnselectedEvent, value);
             }
+
             remove
             {
                 RemoveHandler(UnselectedEvent, value);
@@ -644,17 +1056,46 @@ namespace Microsoft.Windows.Controls
 
         #endregion
 
-        #region Frozen Columns
+        #region Automation
+
+        protected override System.Windows.Automation.Peers.AutomationPeer OnCreateAutomationPeer()
+        {
+            return new Microsoft.Windows.Automation.Peers.DataGridRowAutomationPeer(this);
+        }
+
+        #endregion
+
+        #region Column Virtualization
 
         /// <summary>
-        /// Method which gets called when horizontal scroll happens on the scroll viewer of datagrid
+        ///     Method which tries to scroll a cell for given index into the scroll view
         /// </summary>
-        internal void OnHorizontalScroll()
+        /// <param name="index"></param>
+        internal void ScrollCellIntoView(int index)
         {
-            if (CellsPresenter != null)
+            DataGridCellsPresenter cellsPresenter = CellsPresenter;
+            if (cellsPresenter != null)
             {
-                CellsPresenter.OnHorizontalScroll();
+                cellsPresenter.ScrollCellIntoView(index);
             }
+        }
+
+        #endregion
+
+        #region Layout
+
+        /// <summary>
+        ///     Arrange
+        /// </summary>
+        protected override Size ArrangeOverride(Size arrangeBounds)
+        {
+            DataGrid dataGrid = DataGridOwner;
+            if (dataGrid != null)
+            {
+                dataGrid.QueueInvalidateCellsPanelHorizontalOffset();
+            }
+
+            return base.ArrangeOverride(arrangeBounds);
         }
 
         #endregion
@@ -699,20 +1140,12 @@ namespace Microsoft.Windows.Controls
         }
 
         /// <summary>
-        /// Returns true if the CellsPresenter is supposed to draw the gridlines for the row.
-        /// </summary>
-        internal bool CellsPresenterDrawsGridLines
-        {
-            get { return _detailsPresenter == null; }
-        }
-
-        /// <summary>
         /// Returns true if the DetailsPresenter is supposed to draw gridlines for the row.  Only true
         /// if the DetailsPresenter hooked itself up properly to the Row.
         /// </summary>
         internal bool DetailsPresenterDrawsGridLines
         {
-            get { return _detailsPresenter != null; }
+            get { return _detailsPresenter != null && _detailsPresenter.Visibility == Visibility.Visible; }
         }
 
         /// <summary>
@@ -734,13 +1167,14 @@ namespace Microsoft.Windows.Controls
 
         #region Data
 
-        private DataGrid                        _owner;
-        private DataGridCellsPresenter          _cellsPresenter;
-        private DataGridDetailsPresenter        _detailsPresenter;
-        private DataGridRowHeader               _rowHeader;
-        private ContainerTracking<DataGridRow>  _tracker;
-        
-        #endregion
+        private DataGrid _owner;
+        private DataGridCellsPresenter _cellsPresenter;
+        private DataGridDetailsPresenter _detailsPresenter;
+        private DataGridRowHeader _rowHeader;
+        private ContainerTracking<DataGridRow> _tracker;
+        private double _cellsPresenterResizeHeight;
+        private RowDetailsEventStatus _detailsEventStatus;
 
+        #endregion
     }
 }

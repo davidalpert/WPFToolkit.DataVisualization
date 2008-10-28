@@ -47,41 +47,42 @@ namespace Microsoft.Windows.Controls
         ///     its own collection changed event.
         /// </summary>
         internal void MirrorCollectionChange(NotifyCollectionChangedEventArgs e)
-        {
-            
+        {            
             switch (e.Action)
             {
                 case NotifyCollectionChangedAction.Add:
-                    Debug.Assert(e.NewItems.Count == 1, 
+                    Debug.Assert(
+                        e.NewItems.Count == 1, 
                         "We're mirroring the Columns collection which is an ObservableCollection and only supports adding one item at a time");
                     Insert(e.NewStartingIndex);
                     break;
 
                 case NotifyCollectionChangedAction.Move:
-                    Debug.Assert(e.NewItems.Count == 1,
+                    Debug.Assert(
+                        e.NewItems.Count == 1,
                         "We're mirroring the Columns collection which is an ObservableCollection and only supports moving one item at a time");
                     Move(e.OldStartingIndex, e.NewStartingIndex);
                     break;
 
                 case NotifyCollectionChangedAction.Remove:
-                    Debug.Assert(e.OldItems.Count == 1,
+                    Debug.Assert(
+                        e.OldItems.Count == 1,
                         "We're mirroring the Columns collection which is an ObservableCollection and only supports removing one item at a time");
                     RemoveAt(e.OldStartingIndex);
                     break;
 
                 case NotifyCollectionChangedAction.Replace:
-                    Debug.Assert(e.NewItems.Count == 1,
+                    Debug.Assert(
+                        e.NewItems.Count == 1,
                         "We're mirroring the Columns collection which is an ObservableCollection and only supports replacing one item at a time");
                     OnReplace(CopiedItem, CopiedItem, e.NewStartingIndex);
                     break;
-
 
                 case NotifyCollectionChangedAction.Reset:
                     Reset();
                     break;
             }            
         }
-
 
         /// <summary>
         ///     Syncs up the count with the given one.  This is used when we know we've missed a CollectionChanged event (say this 
@@ -125,7 +126,11 @@ namespace Microsoft.Windows.Controls
         /// </summary>
         internal object CopiedItem
         {
-            get { return _item; }
+            get 
+            { 
+                return _item; 
+            }
+
             set
             {
                 if (value == CollectionView.NewItemPlaceholder)
@@ -134,6 +139,7 @@ namespace Microsoft.Windows.Controls
                     // NewItemPlaceholder, it will confuse the CollectionView.
                     value = DataGrid.NewItemPlaceholder;
                 }
+
                 if (_item != value)
                 {
                     object oldValue = _item;
@@ -155,7 +161,11 @@ namespace Microsoft.Windows.Controls
         /// </summary>
         private int RepeatCount
         {
-            get { return _count; }
+            get 
+            { 
+                return _count; 
+            }
+
             set
             {
                 if (_count != value)
@@ -166,7 +176,6 @@ namespace Microsoft.Windows.Controls
                 }
             }
         }
-
        
         private void Insert(int index)
         {
@@ -197,7 +206,6 @@ namespace Microsoft.Windows.Controls
             OnCollectionChanged(NotifyCollectionChangedAction.Remove, CopiedItem, index);  
         }
 
-
         private void RemoveRange(int index, int count)
         {
             // True range operations are not supported by CollectionView so we instead fire many changed events.
@@ -217,19 +225,6 @@ namespace Microsoft.Windows.Controls
             RepeatCount = 0;
             OnCollectionReset();
         }
-
-
-        private object[] ToArray()
-        {
-            object[] array = new object[RepeatCount];
-            for (int i = 0; i < array.Length; i++)
-            {
-                array[i] = CopiedItem;
-            }
-
-            return array;
-        }
-
 
         #endregion
 
@@ -252,7 +247,7 @@ namespace Microsoft.Windows.Controls
                 throw new ArgumentNullException("value");
             }
 
-            return (_item == value);
+            return _item == value;
         }
 
         public int IndexOf(object value)
@@ -301,9 +296,10 @@ namespace Microsoft.Windows.Controls
                 }
                 else
                 {
-                    throw new IndexOutOfRangeException();
+                    throw new ArgumentOutOfRangeException("index");
                 }
             }
+
             set
             {
                 throw new InvalidOperationException();
@@ -412,7 +408,7 @@ namespace Microsoft.Windows.Controls
             {
                 get
                 {
-                    return ((_collection.RepeatCount == _count) && (_collection.CopiedItem == _item));
+                    return (_collection.RepeatCount == _count) && (_collection.CopiedItem == _item);
                 }
             }
 
@@ -441,7 +437,6 @@ namespace Microsoft.Windows.Controls
         {
             OnCollectionChanged(new NotifyCollectionChangedEventArgs(action, item, index));
         }
-
 
         /// <summary>
         ///     Helper to raise a CollectionChanged event when the collection is cleared.

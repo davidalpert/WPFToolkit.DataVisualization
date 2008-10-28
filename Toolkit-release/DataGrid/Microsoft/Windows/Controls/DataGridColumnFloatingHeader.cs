@@ -9,6 +9,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
+using Microsoft.Windows.Controls.Primitives;
+
+using MS.Internal;
 
 namespace Microsoft.Windows.Controls
 {
@@ -23,10 +26,13 @@ namespace Microsoft.Windows.Controls
         static DataGridColumnFloatingHeader()
         {
             DefaultStyleKeyProperty.OverrideMetadata(typeof(DataGridColumnFloatingHeader), new FrameworkPropertyMetadata(typeof(DataGridColumnFloatingHeader)));
-            WidthProperty.OverrideMetadata(typeof(DataGridColumnFloatingHeader), new FrameworkPropertyMetadata(new PropertyChangedCallback(OnWidthChanged),
-                                                                                                               new CoerceValueCallback(OnCoerceWidth)));
-            HeightProperty.OverrideMetadata(typeof(DataGridColumnFloatingHeader), new FrameworkPropertyMetadata(new PropertyChangedCallback(OnHeightChanged),
-                                                                                                                new CoerceValueCallback(OnCoerceHeight)));
+            WidthProperty.OverrideMetadata(
+                typeof(DataGridColumnFloatingHeader), 
+                new FrameworkPropertyMetadata(new PropertyChangedCallback(OnWidthChanged), new CoerceValueCallback(OnCoerceWidth)));
+
+            HeightProperty.OverrideMetadata(
+                typeof(DataGridColumnFloatingHeader), 
+                new FrameworkPropertyMetadata(new PropertyChangedCallback(OnHeightChanged), new CoerceValueCallback(OnCoerceHeight)));
         }
 
         #endregion
@@ -37,7 +43,7 @@ namespace Microsoft.Windows.Controls
         {
             DataGridColumnFloatingHeader header = (DataGridColumnFloatingHeader)d;
             double width = (double)e.NewValue;
-            if (header._visualBrushCanvas != null && !Double.IsNaN(width))
+            if (header._visualBrushCanvas != null && !DoubleUtil.IsNaN(width))
             {
                 VisualBrush brush = header._visualBrushCanvas.Background as VisualBrush;
                 if (brush != null)
@@ -50,12 +56,13 @@ namespace Microsoft.Windows.Controls
 
         private static object OnCoerceWidth(DependencyObject d, object baseValue)
         {
-            Double width = (double)baseValue;
+            double width = (double)baseValue;
             DataGridColumnFloatingHeader header = (DataGridColumnFloatingHeader)d;
-            if (header._referenceHeader != null && Double.IsNaN(width))
+            if (header._referenceHeader != null && DoubleUtil.IsNaN(width))
             {
                 return header._referenceHeader.ActualWidth + header.GetVisualCanvasMarginX();
             }
+
             return baseValue;
         }
 
@@ -63,7 +70,7 @@ namespace Microsoft.Windows.Controls
         {
             DataGridColumnFloatingHeader header = (DataGridColumnFloatingHeader)d;
             double height = (double)e.NewValue;
-            if (header._visualBrushCanvas != null && !Double.IsNaN(height))
+            if (header._visualBrushCanvas != null && !DoubleUtil.IsNaN(height))
             {
                 VisualBrush brush = header._visualBrushCanvas.Background as VisualBrush;
                 if (brush != null)
@@ -76,12 +83,13 @@ namespace Microsoft.Windows.Controls
 
         private static object OnCoerceHeight(DependencyObject d, object baseValue)
         {
-            Double height = (double)baseValue;
+            double height = (double)baseValue;
             DataGridColumnFloatingHeader header = (DataGridColumnFloatingHeader)d;
-            if (header._referenceHeader != null && Double.IsNaN(height))
+            if (header._referenceHeader != null && DoubleUtil.IsNaN(height))
             {
                 return header._referenceHeader.ActualHeight + header.GetVisualCanvasMarginY();
             }
+
             return baseValue;
         }
 
@@ -102,6 +110,7 @@ namespace Microsoft.Windows.Controls
             {
                 return _referenceHeader;
             }
+
             set
             {
                 _referenceHeader = value;
@@ -117,7 +126,7 @@ namespace Microsoft.Windows.Controls
                 visualBrush.ViewboxUnits = BrushMappingMode.Absolute;
 
                 double width = Width;
-                if (Double.IsNaN(width))
+                if (DoubleUtil.IsNaN(width))
                 {
                     width = _referenceHeader.ActualWidth;
                 }
@@ -127,7 +136,7 @@ namespace Microsoft.Windows.Controls
                 }
 
                 double height = Height;
-                if (Double.IsNaN(height))
+                if (DoubleUtil.IsNaN(height))
                 {
                     height = _referenceHeader.ActualHeight;
                 }
@@ -161,6 +170,7 @@ namespace Microsoft.Windows.Controls
                 delta += margin.Left;
                 delta += margin.Right;
             }
+
             return delta;
         }
 
@@ -173,6 +183,7 @@ namespace Microsoft.Windows.Controls
                 delta += margin.Top;
                 delta += margin.Bottom;
             }
+
             return delta;
         }
 
@@ -180,9 +191,9 @@ namespace Microsoft.Windows.Controls
 
         #region Data
 
-        DataGridColumnHeader _referenceHeader = null;
+        private DataGridColumnHeader _referenceHeader;
         private const string VisualBrushCanvasTemplateName = "PART_VisualBrushCanvas";
-        private Canvas _visualBrushCanvas = null;
+        private Canvas _visualBrushCanvas;
 
         #endregion
     }

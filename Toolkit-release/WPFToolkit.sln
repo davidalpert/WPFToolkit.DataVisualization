@@ -3,16 +3,49 @@ Microsoft Visual Studio Solution File, Format Version 10.00
 # Visual Studio 2008
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WPFToolkit", "WPFToolkit.csproj", "{9606A078-7135-4CE7-879E-39FCF527F1A3}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WPFToolkitDesign", "WPFToolkitDesign\WPFToolkitDesign.csproj", "{8A781058-1211-40D8-9FF4-2EA8CDB31603}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WPFToolkitVisualStudioDesign", "WPFToolkitVisualStudioDesign\WPFToolkitVisualStudioDesign.csproj", "{9AE2A89E-CDE8-42B1-AE01-C297265B5F08}"
+EndProject
 Global
+	GlobalSection(TeamFoundationVersionControl) = preSolution
+		SccNumberOfProjects = 4
+		SccEnterpriseProvider = {4CA58AB2-18FA-4F8D-95D4-32DDF27D184C}
+		SccTeamFoundationServer = https://tfs02.codeplex.com/
+		SccLocalPath0 = .
+		SccProjectUniqueName1 = WPFToolkit.csproj
+		SccLocalPath1 = .
+		SccProjectUniqueName2 = WPFToolkitDesign\\WPFToolkitDesign.csproj
+		SccProjectName2 = WPFToolkitDesign
+		SccLocalPath2 = WPFToolkitDesign
+		SccProjectUniqueName3 = WPFToolkitVisualStudioDesign\\WPFToolkitVisualStudioDesign.csproj
+		SccProjectName3 = WPFToolkitVisualStudioDesign
+		SccLocalPath3 = WPFToolkitVisualStudioDesign
+	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
+		Release with Code Analysis|Any CPU = Release with Code Analysis|Any CPU
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{9606A078-7135-4CE7-879E-39FCF527F1A3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{9606A078-7135-4CE7-879E-39FCF527F1A3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9606A078-7135-4CE7-879E-39FCF527F1A3}.Release with Code Analysis|Any CPU.ActiveCfg = Release with Code Analysis|Any CPU
+		{9606A078-7135-4CE7-879E-39FCF527F1A3}.Release with Code Analysis|Any CPU.Build.0 = Release with Code Analysis|Any CPU
 		{9606A078-7135-4CE7-879E-39FCF527F1A3}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9606A078-7135-4CE7-879E-39FCF527F1A3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8A781058-1211-40D8-9FF4-2EA8CDB31603}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8A781058-1211-40D8-9FF4-2EA8CDB31603}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8A781058-1211-40D8-9FF4-2EA8CDB31603}.Release with Code Analysis|Any CPU.ActiveCfg = Release with Code Analysis|Any CPU
+		{8A781058-1211-40D8-9FF4-2EA8CDB31603}.Release with Code Analysis|Any CPU.Build.0 = Release with Code Analysis|Any CPU
+		{8A781058-1211-40D8-9FF4-2EA8CDB31603}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8A781058-1211-40D8-9FF4-2EA8CDB31603}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9AE2A89E-CDE8-42B1-AE01-C297265B5F08}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9AE2A89E-CDE8-42B1-AE01-C297265B5F08}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9AE2A89E-CDE8-42B1-AE01-C297265B5F08}.Release with Code Analysis|Any CPU.ActiveCfg = Release|Any CPU
+		{9AE2A89E-CDE8-42B1-AE01-C297265B5F08}.Release with Code Analysis|Any CPU.Build.0 = Release|Any CPU
+		{9AE2A89E-CDE8-42B1-AE01-C297265B5F08}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9AE2A89E-CDE8-42B1-AE01-C297265B5F08}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

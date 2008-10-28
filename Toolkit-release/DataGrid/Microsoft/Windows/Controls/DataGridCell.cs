@@ -5,8 +5,8 @@
 //---------------------------------------------------------------------------
 
 using System;
-using System.ComponentModel;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.Windows;
@@ -16,6 +16,7 @@ using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using Microsoft.Windows.Controls.Primitives;
 
 namespace Microsoft.Windows.Controls
 {
@@ -52,6 +53,15 @@ namespace Microsoft.Windows.Controls
 
         #endregion
 
+        #region Automation
+
+        protected override System.Windows.Automation.Peers.AutomationPeer OnCreateAutomationPeer()
+        {
+            return new Microsoft.Windows.Automation.Peers.DataGridCellAutomationPeer(this);
+        }
+
+        #endregion
+
         #region Cell Generation
 
         /// <summary>
@@ -59,8 +69,20 @@ namespace Microsoft.Windows.Controls
         /// </summary>
         /// <remarks>
         ///     Updates the column reference.
+        ///     This overload computes the column index from the ItemContainerGenerator.
         /// </remarks>
         internal void PrepareCell(object item, ItemsControl cellsPresenter, DataGridRow ownerRow)
+        {
+            PrepareCell(item, ownerRow, cellsPresenter.ItemContainerGenerator.IndexFromContainer(this));
+        }
+
+        /// <summary>
+        ///     Prepares a cell for use.
+        /// </summary>
+        /// <remarks>
+        ///     Updates the column reference.
+        /// </remarks>
+        internal void PrepareCell(object item, DataGridRow ownerRow, int index)
         {
             Debug.Assert(_owner == null || _owner == ownerRow, "_owner should be null before PrepareCell is called or the same value as the ownerRow.");
 
@@ -70,7 +92,6 @@ namespace Microsoft.Windows.Controls
             if (dataGrid != null)
             {
                 // The index of the container should correspond to the index of the column
-                int index = cellsPresenter.ItemContainerGenerator.IndexFromContainer(this);
                 if ((index >= 0) && (index < dataGrid.Columns.Count))
                 {
                     // Retrieve the column definition and pass it to the cell container
@@ -109,7 +130,7 @@ namespace Microsoft.Windows.Controls
         /// <summary>
         ///     Clears the cell of references.
         /// </summary>
-        internal void ClearCell(object item, ItemsControl cellsPresenter, DataGridRow ownerRow)
+        internal void ClearCell(DataGridRow ownerRow)
         {
             Debug.Assert(_owner == ownerRow, "_owner should be the same as the DataGridRow that is clearing the cell.");
             _owner = null;
@@ -171,6 +192,7 @@ namespace Microsoft.Windows.Controls
         /// <param name="newColumn">The new column definition.</param>
         protected virtual void OnColumnChanged(DataGridColumn oldColumn, DataGridColumn newColumn)
         {
+            // We need to call BuildVisualTree after changing the column (PrepareCell does this).
             Content = null;
             DataGridHelper.TransferProperty(this, StyleProperty);
             DataGridHelper.TransferProperty(this, IsReadOnlyProperty);
@@ -189,6 +211,24 @@ namespace Microsoft.Windows.Controls
         }
 
         /// <summary>
+        ///     Cancels editing the current cell & notifies the cell of a change to IsReadOnly.
+        /// </summary>
+        private static void OnNotifyIsReadOnlyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var cell = (DataGridCell)d;
+            var dataGrid = cell.DataGridOwner;
+            if ((bool)e.NewValue && dataGrid != null)
+            {
+                dataGrid.CancelEdit(cell);
+            }
+
+            // re-evalutate the BeginEdit command's CanExecute.
+            CommandManager.InvalidateRequerySuggested();
+
+            cell.NotifyPropertyChanged(d, string.Empty, e, NotificationTarget.Cells);
+        }
+
+        /// <summary>
         ///     General notification for DependencyProperty changes from the grid or from columns.
         /// </summary>
         internal void NotifyPropertyChanged(DependencyObject d, string propertyName, DependencyPropertyChangedEventArgs e, NotificationTarget target)
@@ -200,16 +240,12 @@ namespace Microsoft.Windows.Controls
                 return;
             }
 
-            //All the notifications which are to be handled by the cell
+            // All the notifications which are to be handled by the cell
             if (DataGridHelper.ShouldNotifyCells(target))
             {
-                if (e.Property == DataGridColumn.ActualWidthProperty)
+                if (e.Property == DataGridColumn.WidthProperty)
                 {
-                    DataGridHelper.OnColumnWidthChanged(this, true /*detectActualWidthChanges*/);
-                }
-                else if (e.Property == DataGridColumn.WidthProperty)
-                {
-                    DataGridHelper.OnColumnWidthChanged(this, false /*detectActualWidthChanges*/);
+                    DataGridHelper.OnColumnWidthChanged(this, e);
                 }
                 else if (e.Property == DataGrid.CellStyleProperty || e.Property == DataGridColumn.CellStyleProperty || e.Property == StyleProperty)
                 {
@@ -221,17 +257,11 @@ namespace Microsoft.Windows.Controls
                 }
                 else if (e.Property == DataGridColumn.DisplayIndexProperty)
                 {
-                    Panel parent = ParentPanel;
-
-                    if (parent != null)
-                    {
-                        TabIndex = column.DisplayIndex;
-                        parent.InvalidateArrange();
-                    }
+                    TabIndex = column.DisplayIndex;
                 }
             }
 
-            //All the notifications which needs forward to columns
+            // All the notifications which needs forward to columns
             if (DataGridHelper.ShouldRefreshCellContent(target))
             {
                 if (column != null && NeedsVisualTree)
@@ -255,9 +285,14 @@ namespace Microsoft.Windows.Controls
         private static object OnCoerceStyle(DependencyObject d, object baseValue)
         {
             var cell = d as DataGridCell;
-            return DataGridHelper.GetCoercedTransferPropertyValue(cell, baseValue, StyleProperty,
-                                                                  cell.Column, DataGridColumn.CellStyleProperty,
-                                                                  cell.DataGridOwner, DataGrid.CellStyleProperty);
+            return DataGridHelper.GetCoercedTransferPropertyValue(
+                cell, 
+                baseValue, 
+                StyleProperty,
+                cell.Column, 
+                DataGridColumn.CellStyleProperty,
+                cell.DataGridOwner, 
+                DataGrid.CellStyleProperty);
         }
 
         #endregion
@@ -271,12 +306,57 @@ namespace Microsoft.Windows.Controls
         {
             if (NeedsVisualTree)
             {
-                DataGridColumn column = Column;
+                var column = Column;
                 if (column != null)
                 {
+                    // Work around a problem with BindingGroup not removing BindingExpressions.
+                    var row = RowOwner;
+                    if (row != null)
+                    {
+                        var bindingGroup = row.BindingGroup;
+                        if (bindingGroup != null)
+                        {
+                            RemoveBindingExpressions(bindingGroup, Content as DependencyObject);
+                        }
+                    }
+
                     // Ask the column to build a visual tree and
                     // hook the visual tree up through the Content property.
                     Content = column.BuildVisualTree(IsEditing, RowDataItem, this);
+                }
+            }
+        }
+
+        private void RemoveBindingExpressions(BindingGroup bindingGroup, DependencyObject element)
+        {
+            // Walk the logical tree  looking for BindingBindingExpressions.
+            // If it is found in the BindingGroup's BindingExpression list we will remove it.
+            // We only search the logical tree for perf reasons, so some visual children could be skipped.  This 
+            // should be ok for all the stock columns, and will be something that a custom column would need to be
+            // aware of.
+            if (element != null)
+            {
+                var bindingExpressions = bindingGroup.BindingExpressions;
+                var localValueEnumerator = element.GetLocalValueEnumerator();
+                while (localValueEnumerator.MoveNext())
+                {
+                    var bindingExpression = localValueEnumerator.Current.Value as BindingExpression;
+                    if (bindingExpression != null)
+                    {
+                        for (int i = 0; i < bindingExpressions.Count; i++)
+                        {
+                            if (object.ReferenceEquals(bindingExpression, bindingExpressions[i]))
+                            {
+                                bindingExpressions.RemoveAt(i--);
+                            }
+                        }
+                    }
+                }
+
+                // Recursively remove BindingExpressions from child elements.
+                foreach (object child in LogicalTreeHelper.GetChildren(element))
+                {
+                    RemoveBindingExpressions(bindingGroup, child as DependencyObject);
                 }
             }
         }
@@ -332,7 +412,7 @@ namespace Microsoft.Windows.Controls
         }
 
         private static readonly DependencyPropertyKey IsReadOnlyPropertyKey =
-            DependencyProperty.RegisterReadOnly("IsReadOnly", typeof(bool), typeof(DataGridCell), new FrameworkPropertyMetadata(false, OnNotifyPropertyChanged, OnCoerceIsReadOnly));
+            DependencyProperty.RegisterReadOnly("IsReadOnly", typeof(bool), typeof(DataGridCell), new FrameworkPropertyMetadata(false, OnNotifyIsReadOnlyChanged, OnCoerceIsReadOnly));
 
         /// <summary>
         ///     The DependencyProperty for IsReadOnly.
@@ -344,9 +424,14 @@ namespace Microsoft.Windows.Controls
             var cell = d as DataGridCell;
             var column = cell.Column;
             var dataGrid = cell.DataGridOwner;
-            return DataGridHelper.GetCoercedTransferPropertyValue(cell, baseValue, IsReadOnlyProperty,
-                                                                  column, DataGridColumn.IsReadOnlyProperty,
-                                                                  dataGrid, DataGrid.IsReadOnlyProperty);
+            return DataGridHelper.GetCoercedTransferPropertyValue(
+                cell, 
+                baseValue, 
+                IsReadOnlyProperty,
+                column,   
+                DataGridColumn.IsReadOnlyProperty,
+                dataGrid, 
+                DataGrid.IsReadOnlyProperty);
         }
 
         /// <summary>
@@ -391,18 +476,25 @@ namespace Microsoft.Windows.Controls
             IsEditing = false;
         }
 
-        internal void CommitEdit()
+        internal bool CommitEdit()
         {
             Debug.Assert(IsEditing, "Should not call CommitEdit when IsEditing is false.");
 
+            bool validationPassed = true;
             DataGridColumn column = Column;
             if (column != null)
             {
                 // Ask the column to access the binding and update the data source
-                column.CommitEdit(Content as FrameworkElement);
+                // If validation fails, then remain in editing mode
+                validationPassed = column.CommitEdit(Content as FrameworkElement);
             }
 
-            IsEditing = false;
+            if (validationPassed)
+            {
+                IsEditing = false;
+            }
+
+            return validationPassed;
         }
 
         private void RaisePreparingCellForEdit(RoutedEventArgs editingEventArgs)
@@ -509,6 +601,7 @@ namespace Microsoft.Windows.Controls
             {
                 AddHandler(SelectedEvent, value);
             }
+
             remove
             {
                 RemoveHandler(SelectedEvent, value);
@@ -538,6 +631,7 @@ namespace Microsoft.Windows.Controls
             {
                 AddHandler(UnselectedEvent, value);
             }
+
             remove
             {
                 RemoveHandler(UnselectedEvent, value);
@@ -557,22 +651,17 @@ namespace Microsoft.Windows.Controls
 
         #region GridLines
 
-        //
         // Different parts of the DataGrid draw different pieces of the GridLines.
         // Cells draw a single line on their right side. 
-        //
 
         /// <summary>
         ///     Measure.  This is overridden so that the cell can extend its size to account for a grid line on the right.
         /// </summary>
         protected override Size MeasureOverride(Size constraint)
         {
-            //
             // Make space for the GridLine on the right:
             // Remove space from the constraint (since it implicitly includes the GridLine's thickness), 
             // call the base implementation, and add the thickness back for the returned size.
-            //
-
             if (DataGridHelper.IsGridLineVisible(DataGridOwner, /*isHorizontal = */ false))
             {
                 double thickness = DataGridOwner.VerticalGridLineThickness;
@@ -592,10 +681,8 @@ namespace Microsoft.Windows.Controls
         /// <param name="arrangeSize">Arrange size</param>
         protected override Size ArrangeOverride(Size arrangeSize)
         {
-            //
             // We don't need to adjust the Arrange position of the content.  By default it is arranged at 0,0 and we're
             // adding a line to the right.  All we have to do is compress and extend the size, just like Measure.
-            //
             if (DataGridHelper.IsGridLineVisible(DataGridOwner, /*isHorizontal = */ false))
             {
                 double thickness = DataGridOwner.VerticalGridLineThickness;
@@ -639,7 +726,7 @@ namespace Microsoft.Windows.Controls
         /// <summary>
         ///     The left mouse button was pressed
         /// </summary>
-        // TODO: Consider making a protected virtual.
+        /// TODO: Consider making a protected virtual.
         private void OnAnyMouseLeftButtonDown(MouseButtonEventArgs e)
         {
             bool focusWithin = IsKeyboardFocusWithin;
@@ -753,8 +840,10 @@ namespace Microsoft.Windows.Controls
                 {
                     return frozenGeometry;
                 }
+
                 geometry = new CombinedGeometry(GeometryCombineMode.Intersect, geometry, frozenGeometry);
             }
+
             return geometry;
         }
 
@@ -773,6 +862,7 @@ namespace Microsoft.Windows.Controls
                     {
                         dataGridOwner = ItemsControl.ItemsControlFromItemContainer(_owner) as DataGrid;
                     }
+
                     return dataGridOwner;
                 }
 
@@ -819,7 +909,7 @@ namespace Microsoft.Windows.Controls
         {
             get
             {
-                return ((ContentTemplate == null) && (ContentTemplateSelector == null));
+                return (ContentTemplate == null) && (ContentTemplateSelector == null);
             }
         }
 

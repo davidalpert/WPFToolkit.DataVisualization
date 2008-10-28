@@ -7,6 +7,9 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
+using Microsoft.Windows.Controls.Primitives;
+
+using MS.Internal;
 
 namespace Microsoft.Windows.Controls
 {
@@ -19,11 +22,17 @@ namespace Microsoft.Windows.Controls
 
         static DataGridColumnDropSeparator()
         {
-            DefaultStyleKeyProperty.OverrideMetadata(typeof(DataGridColumnDropSeparator), new FrameworkPropertyMetadata(typeof(DataGridColumnDropSeparator)));
-            WidthProperty.OverrideMetadata(typeof(DataGridColumnDropSeparator), new FrameworkPropertyMetadata(null,
-                                                                                                               new CoerceValueCallback(OnCoerceWidth)));
-            HeightProperty.OverrideMetadata(typeof(DataGridColumnDropSeparator), new FrameworkPropertyMetadata(null,
-                                                                                                                new CoerceValueCallback(OnCoerceHeight)));
+            DefaultStyleKeyProperty.OverrideMetadata(
+                typeof(DataGridColumnDropSeparator), 
+                new FrameworkPropertyMetadata(typeof(DataGridColumnDropSeparator)));
+
+            WidthProperty.OverrideMetadata(
+                typeof(DataGridColumnDropSeparator), 
+                new FrameworkPropertyMetadata(null, new CoerceValueCallback(OnCoerceWidth)));
+            
+            HeightProperty.OverrideMetadata(
+                typeof(DataGridColumnDropSeparator), 
+                new FrameworkPropertyMetadata(null, new CoerceValueCallback(OnCoerceHeight)));
         }
 
         #endregion
@@ -32,22 +41,24 @@ namespace Microsoft.Windows.Controls
 
         private static object OnCoerceWidth(DependencyObject d, object baseValue)
         {
-            Double width = (double)baseValue;
-            if (Double.IsNaN(width))
+            double width = (double)baseValue;
+            if (DoubleUtil.IsNaN(width))
             {
                 return 2.0;
             }
+
             return baseValue;
         }
 
         private static object OnCoerceHeight(DependencyObject d, object baseValue)
         {
-            Double height = (double)baseValue;
+            double height = (double)baseValue;
             DataGridColumnDropSeparator separator = (DataGridColumnDropSeparator)d;
-            if (separator._referenceHeader != null && Double.IsNaN(height))
+            if (separator._referenceHeader != null && DoubleUtil.IsNaN(height))
             {
                 return separator._referenceHeader.ActualHeight;
             }
+
             return baseValue;
         }
 
@@ -61,6 +72,7 @@ namespace Microsoft.Windows.Controls
             {
                 return _referenceHeader;
             }
+
             set
             {
                 _referenceHeader = value;
@@ -71,9 +83,8 @@ namespace Microsoft.Windows.Controls
 
         #region Data
 
-        DataGridColumnHeader _referenceHeader = null;
+        private DataGridColumnHeader _referenceHeader;
 
         #endregion
-
     }
 }

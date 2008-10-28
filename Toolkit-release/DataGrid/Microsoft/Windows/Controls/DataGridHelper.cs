@@ -5,15 +5,18 @@
 //---------------------------------------------------------------------------
 
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using Microsoft.Windows.Controls.Primitives;
 using MS.Internal;
-using System.Collections.Generic;
 
 namespace Microsoft.Windows.Controls
 {
@@ -24,9 +27,7 @@ namespace Microsoft.Windows.Controls
     {
         #region GridLines
 
-        //
         // Common code for drawing GridLines.  Shared by DataGridDetailsPresenter, DataGridCellsPresenter, and Cell
-        //
 
         /// <summary>
         ///     Returns a size based on the given one with the given double subtracted out from the Width or Height.
@@ -73,7 +74,6 @@ namespace Microsoft.Windows.Controls
 
         #region Notification Propagation
 
-
         public static bool ShouldNotifyCells(NotificationTarget target)
         {
             return TestTarget(target, NotificationTarget.Cells);
@@ -109,13 +109,10 @@ namespace Microsoft.Windows.Controls
             return TestTarget(target, NotificationTarget.DataGrid);
         }
 
-        // TODO: we have no properties that notify the DetailsPresenter right now.
-#if NotifyDetailsPresenter
         public static bool ShouldNotifyDetailsPresenter(NotificationTarget target)
         {
             return TestTarget(target, NotificationTarget.DetailsPresenter);
         }
-#endif
 
         public static bool ShouldRefreshCellContent(NotificationTarget target)
         {
@@ -134,12 +131,15 @@ namespace Microsoft.Windows.Controls
 
         public static bool ShouldNotifyRowSubtree(NotificationTarget target)
         {
-            return TestTarget(target, NotificationTarget.Rows |
-                                      NotificationTarget.RowHeaders |
-                                      NotificationTarget.CellsPresenter |
-                                      NotificationTarget.Cells |
-                                      NotificationTarget.RefreshCellContent |
-                                      NotificationTarget.DetailsPresenter);
+            NotificationTarget value = 
+                NotificationTarget.Rows | 
+                NotificationTarget.RowHeaders | 
+                NotificationTarget.CellsPresenter |
+                NotificationTarget.Cells |
+                NotificationTarget.RefreshCellContent |
+                NotificationTarget.DetailsPresenter;
+
+            return TestTarget(target, value);
         }
 
         private static bool TestTarget(NotificationTarget target, NotificationTarget value)
@@ -151,9 +151,8 @@ namespace Microsoft.Windows.Controls
 
         #region Tree Helpers
 
-
         /// <summary>
-        /// Walks up the templated parent tree looking for a parent type.
+        ///     Walks up the templated parent tree looking for a parent type.
         /// </summary>
         public static T FindParent<T>(FrameworkElement element) where T : FrameworkElement
         {
@@ -190,55 +189,103 @@ namespace Microsoft.Windows.Controls
             return null;
         }
 
+        /// <summary>
+        ///     Helper method which determines if any of the elements of
+        ///     the tree is focusable and has tab stop
+        /// </summary>
+        public static bool TreeHasFocusAndTabStop(DependencyObject element)
+        {
+            if (element == null)
+            {
+                return false;
+            }
+
+            UIElement uielement = element as UIElement;
+            if (uielement != null)
+            {
+                if (uielement.Focusable && KeyboardNavigation.GetIsTabStop(uielement))
+                {
+                    return true;
+                }
+            }
+            else
+            {
+                ContentElement contentElement = element as ContentElement;
+                if (contentElement != null && contentElement.Focusable && KeyboardNavigation.GetIsTabStop(contentElement))
+                {
+                    return true;
+                }
+            }
+
+            int childCount = VisualTreeHelper.GetChildrenCount(element);
+            for (int i = 0; i < childCount; i++)
+            {
+                DependencyObject child = VisualTreeHelper.GetChild(element, i) as DependencyObject;
+                if (TreeHasFocusAndTabStop(child))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         #endregion
 
-        #region Cells Panel Invalidation
+        #region Cells Panel Helper
 
         /// <summary>
-        ///     Invalidates a cell's panel if its column's width changes sufficiently.
+        ///     Invalidates a cell's panel if its column's width changes sufficiently. 
         /// </summary>
-        /// <param name="provideColumn">The cell or header.</param>
-        public static void OnColumnWidthChanged(IProvideDataGridColumn cell, bool detectActualWidthChanges)
+        /// <param name="cell">The cell or header.</param>
+        /// <param name="e"></param>
+        public static void OnColumnWidthChanged(IProvideDataGridColumn cell, DependencyPropertyChangedEventArgs e)
         {
-            Debug.Assert((cell is DataGridCell) || (cell is DataGridColumnHeader),
-                "provideColumn should be one of the cell or header containers.");
+            Debug.Assert((cell is DataGridCell) || (cell is DataGridColumnHeader), "provideColumn should be one of the cell or header containers.");
 
             UIElement element = (UIElement)cell;
             DataGridColumn column = cell.Column;
+            bool isColumnHeader = (cell is DataGridColumnHeader);
 
-            if ((column != null) && 
-                !(detectActualWidthChanges && DoubleUtil.AreClose(column.ActualWidth, element.RenderSize.Width)))
+            if (column != null)
             {
-                // The width changed enough to invaliate the parent DataGridCellsPanel.
-                DataGridCellsPanel panel = VisualTreeHelper.GetParent(element) as DataGridCellsPanel;
-                if (panel != null)
+                // determine the desired value of width for auto kind columns
+                DataGridLength width = column.Width;
+                if (width.IsAuto || 
+                    (!isColumnHeader && width.IsSizeToCells) ||
+                    (isColumnHeader && width.IsSizeToHeader))
                 {
-                    // The parent panel (and not the cell) is invalidated since 
-                    // it is the one that is communicating with the 
-                    // column regarding width data.
-                    panel.InvalidateMeasure();
-                    panel.InvalidateArrange();
+                    DataGridLength oldWidth = (DataGridLength)e.OldValue;
+                    double desiredWidth = 0.0;
+                    if (oldWidth.UnitType != width.UnitType)
+                    {
+                        double constraintWidth = column.GetConstraintWidth(isColumnHeader);
+                        if (!DoubleUtil.AreClose(element.DesiredSize.Width, constraintWidth))
+                        {
+                            element.InvalidateMeasure();
+                            element.Measure(new Size(constraintWidth, double.PositiveInfinity));
+                        }
+
+                        desiredWidth = element.DesiredSize.Width;
+                    }
+                    else
+                    {
+                        desiredWidth = oldWidth.DesiredValue;
+                    }
+
+                    if (DoubleUtil.IsNaN(width.DesiredValue) ||
+                        DoubleUtil.LessThan(width.DesiredValue, desiredWidth))
+                    {
+                        column.SetWidthInternal(new DataGridLength(width.Value, width.UnitType, desiredWidth, width.DisplayValue));
+                    }
                 }
             }
         }
 
         /// <summary>
-        /// Helper method which invalidates the arrange of cells panel for a given cell
+        ///     Helper method which returns the clip for the cell based on whether it overlaps with frozen columns or not
         /// </summary>
-        /// <param name="cell"></param>
-        public static void InvalidateCellsPanelArrange(IProvideDataGridColumn cell)
-        {
-            DataGridCellsPanel panel = GetParentPanelForCell(cell);
-            if (panel != null)
-            {
-                panel.InvalidateArrange();
-            }
-        }
-
-        /// <summary>
-        /// Helper method which returns the clip for the cell based on whether it overlaps with frozen columns or not
-        /// </summary>
-        /// <param name="cell"></param>
+        /// <param name="cell">The cell or header.</param>
         /// <returns></returns>
         public static Geometry GetFrozenClipForCell(IProvideDataGridColumn cell)
         {
@@ -247,21 +294,38 @@ namespace Microsoft.Windows.Controls
             {
                 return panel.GetFrozenClipForChild((UIElement)cell);
             }
+
             return null;
         }
 
         /// <summary>
-        /// Helper method which returns the parent DataGridCellsPanel for a cell
+        ///     Helper method which returns the parent DataGridCellsPanel for a cell
         /// </summary>
-        /// <param name="cell"></param>
-        /// <returns></returns>
+        /// <param name="cell">The cell or header.</param>
+        /// <returns>Parent panel of the given cell or header</returns>
         public static DataGridCellsPanel GetParentPanelForCell(IProvideDataGridColumn cell)
         {
-            Debug.Assert((cell is DataGridCell) || (cell is DataGridColumnHeader),
-                "provideColumn should be one of the cell or header containers.");
+            Debug.Assert((cell is DataGridCell) || (cell is DataGridColumnHeader), "provideColumn should be one of the cell or header containers.");
 
             UIElement element = (UIElement)cell;
-            return (VisualTreeHelper.GetParent(element) as DataGridCellsPanel);
+            return VisualTreeHelper.GetParent(element) as DataGridCellsPanel;
+        }
+
+        /// <summary>
+        ///     Helper method which returns the parent DataGridCellPanel's offset from the scroll viewer
+        ///     for a cell or Header
+        /// </summary>
+        /// <param name="cell">The cell or header.</param>
+        /// <returns>Parent Panel's offset with respect to scroll viewer</returns>
+        public static double GetParentCellsPanelHorizontalOffset(IProvideDataGridColumn cell)
+        {
+            DataGridCellsPanel panel = GetParentPanelForCell(cell);
+            if (panel != null)
+            {
+                return panel.ComputeCellsPanelHorizontalOffset();
+            }
+
+            return 0.0;
         }
 
         #endregion
@@ -271,6 +335,23 @@ namespace Microsoft.Windows.Controls
         public static bool IsDefaultValue(DependencyObject d, DependencyProperty dp)
         {
             return DependencyPropertyHelper.GetValueSource(d, dp).BaseValueSource == BaseValueSource.Default;
+        }
+
+        public static object GetCoercedTransferPropertyValue(
+            DependencyObject baseObject, 
+            object baseValue, 
+            DependencyProperty baseProperty,
+            DependencyObject parentObject, 
+            DependencyProperty parentProperty)
+        {
+            return GetCoercedTransferPropertyValue(
+                baseObject, 
+                baseValue, 
+                baseProperty,
+                parentObject, 
+                parentProperty,
+                null, 
+                null);
         }
 
         /// <summary>
@@ -287,11 +368,15 @@ namespace Microsoft.Windows.Controls
         /// <param name="grandParentObject">Same as parentObject but evaluated at a lower presedece for a given BaseValueSource</param>
         /// <param name="grandParentProperty">Same as parentProperty but evaluated at a lower presedece for a given BaseValueSource</param>
         /// <returns></returns>
-        public static object GetCoercedTransferPropertyValue(DependencyObject baseObject, object baseValue, DependencyProperty baseProperty,
-                                                             DependencyObject parentObject, DependencyProperty parentProperty,
-                                                             DependencyObject grandParentObject, DependencyProperty grandParentProperty)
+        public static object GetCoercedTransferPropertyValue(
+            DependencyObject baseObject, 
+            object baseValue, 
+            DependencyProperty baseProperty,            
+            DependencyObject parentObject,           
+            DependencyProperty parentProperty,
+            DependencyObject grandParentObject,      
+            DependencyProperty grandParentProperty)
         {
-            //
             // Transfer Property Coercion rules:
             //
             // Determine if this is a 'Transfer Property Coercion'.  If so:
@@ -300,7 +385,6 @@ namespace Microsoft.Windows.Controls
             //   Pick a value to use based on who has the greatest BaseValueSource
             // If not a 'Transfer Property Coercion', simply return baseValue.  This will cause a property change if the value changes, which
             // will trigger a 'Transfer Property Coercion', and we will no longer have a stale BaseValueSource
-            //
             var coercedValue = baseValue;
 
             if (IsPropertyTransferEnabled(baseObject, baseProperty))
@@ -345,13 +429,13 @@ namespace Microsoft.Windows.Controls
         /// <param name="p">The DependencyProperty that is the target of the property transfer.</param>
         public static void TransferProperty(DependencyObject d, DependencyProperty p)
         {
-            var transferEnabledMap = GetPropertyTransferEnabledMapForObject(d, p);
+            var transferEnabledMap = GetPropertyTransferEnabledMapForObject(d);
             transferEnabledMap[p] = true;
             d.CoerceValue(p);
             transferEnabledMap[p] = false;
         }
 
-        private static Dictionary<DependencyProperty, bool> GetPropertyTransferEnabledMapForObject(DependencyObject d, DependencyProperty p)
+        private static Dictionary<DependencyProperty, bool> GetPropertyTransferEnabledMapForObject(DependencyObject d)
         {
             var propertyTransferEnabledForObject = _propertyTransferEnabledMap[d] as Dictionary<DependencyProperty, bool>;
 
@@ -448,138 +532,132 @@ namespace Microsoft.Windows.Controls
 
         #endregion
 
-        #region Star Width Helper
+        #region Binding
 
-        /// <summary>
-        /// Helper method which determines if star width computation is needed or not
-        /// </summary>
-        /// <param name="dataGrid"></param>
-        /// <returns></returns>
-        public static bool StarWidthComputationNeeded(DataGrid dataGrid)
+        internal static void EnsureTwoWay(BindingBase bindingBase)
         {
-            Debug.Assert(dataGrid != null, "DataGrid is null");
-            return ((DataGridColumnCollection)(dataGrid.Columns)).ComputeStarColumnWidths;
-        }
-
-        /// <summary>
-        /// Helper method which invalidates the star width computation flag
-        /// </summary>
-        /// <param name="dataGrid"></param>
-        public static void InvalidateStarWidthComputation(DataGrid dataGrid)
-        {
-            Debug.Assert(dataGrid != null, "DataGrid is null");
-            ((DataGridColumnCollection)(dataGrid.Columns)).ComputeStarColumnWidths = true;
-        }
-
-        /// <summary>
-        /// Helper method which computes the widths of all the star columns for a given datagrid
-        /// </summary>
-        /// <param name="dataGrid"></param>
-        /// <param name="availableStarSpace"></param>
-        public static void ComputeStarColumnWidths(DataGrid dataGrid, double availableStarSpace)
-        {
-            Debug.Assert(dataGrid != null, "DataGrid is null");
-            Debug.Assert(!Double.IsNaN(availableStarSpace) && !Double.IsNegativeInfinity(availableStarSpace) && !Double.IsPositiveInfinity(availableStarSpace),
-                "availableStarSpace is not valid");
-
-            List<DataGridColumn> unResolvedColumns = new List<DataGridColumn>();
-            List<DataGridColumn> partialResolvedColumns = new List<DataGridColumn>();
-            double totalFactors = 0.0;
-
-            //accumulate all the star columns into unResolvedColumns in the beginning
-            foreach(DataGridColumn column in dataGrid.Columns)
+            if (bindingBase == null)
             {
-                DataGridLength width = column.Width;
-                if(width.IsStar)
+                return;
+            }
+
+            // If it is a standard Binding, then set the mode to TwoWay
+            Binding binding = bindingBase as Binding;
+            if (binding != null)
+            {
+                if (binding.Mode != BindingMode.TwoWay)
                 {
-                    unResolvedColumns.Add(column);
-                    totalFactors += width.Value;
+                    binding.Mode = BindingMode.TwoWay;
+                    binding.UpdateSourceTrigger = UpdateSourceTrigger.Explicit;
+                }
+
+                return;
+            }
+
+            // A multi-binding can be set to TwoWay as well
+            MultiBinding multiBinding = bindingBase as MultiBinding;
+            if (multiBinding != null)
+            {
+                if (multiBinding.Mode != BindingMode.TwoWay)
+                {
+                    multiBinding.Mode = BindingMode.TwoWay;
+                    multiBinding.UpdateSourceTrigger = UpdateSourceTrigger.Explicit;
+                }
+
+                return;
+            }
+
+            // A priority binding is a list of bindings, each should be set to TwoWay
+            PriorityBinding priBinding = bindingBase as PriorityBinding;
+            if (priBinding != null)
+            {
+                Collection<BindingBase> subBindings = priBinding.Bindings;
+                int count = subBindings.Count;
+                for (int i = 0; i < count; i++)
+                {
+                    EnsureTwoWay(subBindings[i]);
+                }
+            }
+        }
+
+        internal static BindingExpression GetBindingExpression(FrameworkElement element, DependencyProperty dp)
+        {
+            if (element != null)
+            {
+                return element.GetBindingExpression(dp);
+            }
+
+            return null;
+        }
+
+        internal static void UpdateSource(FrameworkElement element, DependencyProperty dp)
+        {
+            BindingExpression binding = DataGridHelper.GetBindingExpression(element, dp);
+            if (binding != null)
+            {
+                binding.UpdateSource();
+            }
+        }
+
+        internal static void UpdateTarget(FrameworkElement element, DependencyProperty dp)
+        {
+            BindingExpression binding = DataGridHelper.GetBindingExpression(element, dp);
+            if (binding != null)
+            {
+                binding.UpdateTarget();
+            }
+        }
+
+        internal static void SyncColumnProperty(DependencyObject column, DependencyObject content, DependencyProperty contentProperty, DependencyProperty columnProperty)
+        {
+            if (IsDefaultValue(column, columnProperty))
+            {
+                content.ClearValue(contentProperty);
+            }
+            else
+            {
+                content.SetValue(contentProperty, column.GetValue(columnProperty));
+            }
+        }
+
+        internal static string GetPathFromBinding(Binding binding)
+        {
+            if (binding != null)
+            {
+                if (!string.IsNullOrEmpty(binding.XPath))
+                {
+                    return binding.XPath;
+                }
+                else if (binding.Path != null)
+                {
+                    return binding.Path.Path;
                 }
             }
 
-            while (unResolvedColumns.Count > 0)
-            {
-                //find all the columns whose star share is less than thier min width and move such columns
-                //into partialResolvedColumns giving them atleast the minwidth and there by reducing the availableSpace and totalFactors
-                for (int i = 0, count = unResolvedColumns.Count; i < count; i++)
-                {
-                    DataGridColumn column = unResolvedColumns[i];
-                    DataGridLength width = column.Width;
+            return null;
+        }
 
-                    double columnMinWidth = column.MinWidth;
-                    double starColumnWidth = availableStarSpace * width.Value / totalFactors;
+        #endregion
 
-                    if (DoubleUtil.GreaterThan(columnMinWidth, starColumnWidth))
-                    {
-                        availableStarSpace = Math.Max(0.0, availableStarSpace - columnMinWidth);
-                        totalFactors -= width.Value;
-                        unResolvedColumns.RemoveAt(i);
-                        i--;
-                        count--;
-                        partialResolvedColumns.Add(column);
-                    }
-                }
+        #region Other Helpers
 
-                //With the remaining space determine in any columns star share is more than maxwidth.
-                //If such columns are found give them their max width and remove them from unResolvedColumns
-                //there by reducing the availablespace and totalfactors. If such column is found, the remaining columns are to be recomputed
-                bool iterationRequired = false;
-                for (int i = 0, count = unResolvedColumns.Count; i < count; i++)
-                {
-                    DataGridColumn column = unResolvedColumns[i];
-                    DataGridLength width = column.Width;
+        /// <summary>
+        ///     Method which takes in DataGridHeadersVisibility parameter
+        ///     and determines if row headers are visible.
+        /// </summary>
+        public static bool AreRowHeadersVisible(DataGridHeadersVisibility headersVisibility)
+        {
+            return (headersVisibility & DataGridHeadersVisibility.Row) == DataGridHeadersVisibility.Row;
+        }
 
-                    double columnMaxWidth = column.MaxWidth;
-                    double starColumnWidth = availableStarSpace * width.Value / totalFactors;
-
-                    if (DoubleUtil.LessThan(columnMaxWidth, starColumnWidth))
-                    {
-                        iterationRequired = true;
-                        unResolvedColumns.RemoveAt(i);
-                        availableStarSpace -= columnMaxWidth;
-                        totalFactors -= width.Value;
-                        column.UpdateActualWidth(columnMaxWidth);
-                        break;
-                    }
-                }
-
-                //If it was determined by the previous step that another iteration is needed
-                //then move all the partialResolvedColumns back to unResolvedColumns and there by
-                //restoring availablespace and totalfactors.
-                //If another iteration is not needed then allocate min widths to all columns in 
-                //partial resolved columns and star share to all unresolved columns there by
-                //ending the loop
-                if (iterationRequired)
-                {
-                    for (int i = 0, count = partialResolvedColumns.Count; i < count; i++)
-                    {
-                        DataGridColumn column = partialResolvedColumns[i];
-
-                        unResolvedColumns.Add(column);
-                        availableStarSpace += column.MinWidth;
-                        totalFactors += column.Width.Value;
-                    }
-                    partialResolvedColumns.Clear();
-                }
-                else
-                {
-                    for (int i = 0, count = partialResolvedColumns.Count; i < count; i++)
-                    {
-                        DataGridColumn column = partialResolvedColumns[i];
-                        column.UpdateActualWidth(column.MinWidth);
-                    }
-                    partialResolvedColumns.Clear();
-                    for (int i = 0, count = unResolvedColumns.Count; i < count; i++)
-                    {
-                        DataGridColumn column = unResolvedColumns[i];
-                        double starColumnWidth = availableStarSpace * column.Width.Value / totalFactors;
-                        column.UpdateActualWidth(starColumnWidth);
-                    }
-                    unResolvedColumns.Clear();
-                }
-            }
-
-            ((DataGridColumnCollection)(dataGrid.Columns)).ComputeStarColumnWidths = false;
+        /// <summary>
+        ///     Helper method which coerces a value such that it satisfies min and max restrictions
+        /// </summary>
+        public static double CoerceToMinMax(double value, double minValue, double maxValue)
+        {
+            value = Math.Max(value, minValue);
+            value = Math.Min(value, maxValue);
+            return value;
         }
 
         #endregion

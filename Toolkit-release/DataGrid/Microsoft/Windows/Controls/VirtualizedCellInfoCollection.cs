@@ -152,7 +152,6 @@ namespace Microsoft.Windows.Controls
             // be equally bad when there is a large selection.
             // This method is used by DataGridCell.PrepareCell, which can't afford the
             // Items.IndexOf call while scrolling.
-
             if (!IsEmpty)
             {
                 object row = cell.RowDataItem;
@@ -321,8 +320,9 @@ namespace Microsoft.Windows.Controls
                 CellRegion region = _regions[i];
                 if (region.Contains(columnIndex, rowIndex))
                 {
-                    return regionCount + ((rowIndex - region.Top) * region.Width + columnIndex - region.Left);
+                    return regionCount + (((rowIndex - region.Top) * region.Width) + columnIndex - region.Left);
                 }
+
                 regionCount += region.Size;
             }
 
@@ -392,7 +392,10 @@ namespace Microsoft.Windows.Controls
                 throw new ArgumentOutOfRangeException("index");
             }
 
-            set { throw new NotSupportedException(SR.Get(SRID.VirtualizedCellInfoCollection_DoesNotSupportIndexChanges)); }
+            set 
+            { 
+                throw new NotSupportedException(SR.Get(SRID.VirtualizedCellInfoCollection_DoesNotSupportIndexChanges)); 
+            }
         }
 
         /// <summary>
@@ -485,7 +488,11 @@ namespace Microsoft.Windows.Controls
 
             public int Left
             {
-                get { return _left; }
+                get 
+                { 
+                    return _left; 
+                }
+
                 set
                 {
                     Debug.Assert(value >= 0, "Value must be positive.");
@@ -495,7 +502,11 @@ namespace Microsoft.Windows.Controls
 
             public int Top
             {
-                get { return _top; }
+                get 
+                { 
+                    return _top; 
+                }
+
                 set
                 {
                     Debug.Assert(value >= 0, "Value must be positive.");
@@ -505,7 +516,11 @@ namespace Microsoft.Windows.Controls
 
             public int Right
             {
-                get { return _left + _width - 1; }
+                get 
+                { 
+                    return _left + _width - 1; 
+                }
+
                 set
                 {
                     Debug.Assert(value >= _left, "Right must be greater than or equal to Left.");
@@ -515,7 +530,11 @@ namespace Microsoft.Windows.Controls
 
             public int Bottom
             {
-                get { return _top + _height - 1; }
+                get 
+                { 
+                    return _top + _height - 1; 
+                }
+
                 set
                 {
                     Debug.Assert(value >= _top, "Bottom must be greater than or equal to Top.");
@@ -525,7 +544,11 @@ namespace Microsoft.Windows.Controls
 
             public int Width
             {
-                get { return _width; }
+                get 
+                { 
+                    return _width; 
+                }
+
                 set
                 {
                     Debug.Assert(value >= 0, "Value must be positive.");
@@ -535,7 +558,11 @@ namespace Microsoft.Windows.Controls
 
             public int Height
             {
-                get { return _height; }
+                get 
+                { 
+                    return _height; 
+                }
+
                 set
                 {
                     Debug.Assert(value >= 0, "Value must be positive.");
@@ -561,14 +588,14 @@ namespace Microsoft.Windows.Controls
                 }
                 else
                 {
-                    return ((x >= Left) && (y >= Top) && (x <= Right) && (y <= Bottom));
+                    return (x >= Left) && (y >= Top) && (x <= Right) && (y <= Bottom);
                 }
             }
 
             public bool Contains(CellRegion region)
             {
-                return ((Left <= region.Left) && (Top <= region.Top) &&
-                        (Right >= region.Right) && (Bottom >= region.Bottom));
+                return (Left <= region.Left) && (Top <= region.Top) &&
+                       (Right >= region.Right) && (Bottom >= region.Bottom);
             }
 
             public bool Intersects(CellRegion region)
@@ -779,14 +806,17 @@ namespace Microsoft.Windows.Controls
                 {
                     left = region.Left;
                 }
+
                 if (region.Top < top)
                 {
                     top = region.Top;
                 }
+
                 if (region.Right > right)
                 {
                     right = region.Right;
                 }
+
                 if (region.Bottom > bottom)
                 {
                     bottom = region.Bottom;
@@ -887,8 +917,9 @@ namespace Microsoft.Windows.Controls
                 {
                     CellRegion region = _regions[i];
                     CellRegion intersection = region.Intersection(removeRegion);
-                    if (!intersection.IsEmpty) // The two regions intersect
+                    if (!intersection.IsEmpty) 
                     {
+                        // The two regions intersect
                         if (removeList == null)
                         {
                             removeList = new List<CellRegion>();
@@ -1059,6 +1090,7 @@ namespace Microsoft.Windows.Controls
                         AddRegion(keptRegion.Top - 1, keptRegion.Left, keptRegion.Height, keptRegion.Width, /* notify = */ false);
                     }
                 }
+
                 slideRegions = null;
 
                 // Remove the region that is sliding over
@@ -1249,6 +1281,7 @@ namespace Microsoft.Windows.Controls
                         AddRegion(keptRegion.Top, keptRegion.Left - 1, keptRegion.Height, keptRegion.Width, /* notify = */ false);
                     }
                 }
+
                 slideRegions = null;
 
                 // Remove the region that is sliding over
@@ -1519,6 +1552,7 @@ namespace Microsoft.Windows.Controls
                     {
                         columnIndexRanges = new List<int>();
                     }
+
                     columnIndexRanges.Add(region.Left);
                     columnIndexRanges.Add(region.Width);
                 }
