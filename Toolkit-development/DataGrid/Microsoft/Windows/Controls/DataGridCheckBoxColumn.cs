@@ -103,15 +103,55 @@ namespace Microsoft.Windows.Controls
                 checkBox = new CheckBox();
             }
 
+            checkBox.IsThreeState = IsThreeState;
+
             ApplyStyle(isEditing, /* defaultToElementStyle = */ true, checkBox);
-            ApplyDataFieldBinding(checkBox, CheckBox.IsCheckedProperty);
+            ApplyBinding(checkBox, CheckBox.IsCheckedProperty);
 
             return checkBox;
+        }
+
+        protected internal override void RefreshCellContent(FrameworkElement element, string propertyName)
+        {
+            DataGridCell cell = element as DataGridCell;
+            if (cell != null &&
+                string.Compare(propertyName, "IsThreeState", StringComparison.Ordinal) == 0)
+            {
+                var checkBox = cell.Content as CheckBox;
+                if (checkBox != null)
+                {
+                    checkBox.IsThreeState = IsThreeState;
+                }
+            }
+            else
+            {
+                base.RefreshCellContent(element, propertyName);
+            }
         }
 
         #endregion
 
         #region Editing
+
+        /// <summary>
+        ///     The DependencyProperty for the IsThreeState property.
+        ///     Flags:              None
+        ///     Default Value:      false
+        /// </summary>
+        public static readonly DependencyProperty IsThreeStateProperty =
+                CheckBox.IsThreeStateProperty.AddOwner(
+                        typeof(DataGridCheckBoxColumn),
+                        new FrameworkPropertyMetadata(false, DataGridColumn.NotifyPropertyChangeForRefreshContent));
+
+        /// <summary>
+        ///     The IsThreeState property determines whether the control supports two or three states.
+        ///     IsChecked property can be set to null as a third state when IsThreeState is true
+        /// </summary>
+        public bool IsThreeState
+        {
+            get { return (bool)GetValue(IsThreeStateProperty); }
+            set { SetValue(IsThreeStateProperty, value); }
+        }
 
         /// <summary>
         ///     Called when a cell has just switched to edit mode.
@@ -137,19 +177,37 @@ namespace Microsoft.Windows.Controls
                 return uneditedValue;
             }
 
-            return (bool?)false;
+            return (bool?) false;
         }
 
         /// <summary>
         ///     Called when a cell's value is to be committed, just before it exits edit mode.
         /// </summary>
         /// <param name="editingElement">A reference to element returned by GenerateEditingElement.</param>
-        protected override void CommitCellEdit(FrameworkElement editingElement)
+        /// <returns>false if there is a validation error. true otherwise.</returns>
+        protected override bool CommitCellEdit(FrameworkElement editingElement)
         {
             CheckBox checkBox = editingElement as CheckBox;
             if (checkBox != null)
             {
-                UpdateSource(checkBox, CheckBox.IsCheckedProperty);
+                DataGridHelper.UpdateSource(checkBox, CheckBox.IsCheckedProperty);
+                return !Validation.GetHasError(checkBox);
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        ///     Called when a cell's value is to be cancelled, just before it exits edit mode.
+        /// </summary>
+        /// <param name="editingElement">A reference to element returned by GenerateEditingElement.</param>
+        /// <param name="uneditedValue">UneditedValue</param>
+        protected override void CancelCellEdit(FrameworkElement editingElement, object uneditedValue)
+        {
+            CheckBox checkBox = editingElement as CheckBox;
+            if (checkBox != null)
+            {
+                DataGridHelper.UpdateTarget(checkBox, CheckBox.IsCheckedProperty);
             }
         }
 
@@ -165,9 +223,9 @@ namespace Microsoft.Windows.Controls
         private static bool IsMouseLeftButtonDown(RoutedEventArgs e)
         {
             MouseButtonEventArgs mouseArgs = e as MouseButtonEventArgs;
-            return ((mouseArgs != null) &&
-                    (mouseArgs.ChangedButton == MouseButton.Left) &&
-                    (mouseArgs.ButtonState == MouseButtonState.Pressed));
+            return (mouseArgs != null) &&
+                   (mouseArgs.ChangedButton == MouseButton.Left) &&
+                   (mouseArgs.ButtonState == MouseButtonState.Pressed);
         }
 
         private static bool IsMouseOver(CheckBox checkBox, RoutedEventArgs e)
@@ -180,9 +238,9 @@ namespace Microsoft.Windows.Controls
         private static bool IsSpaceKeyDown(RoutedEventArgs e)
         {
             KeyEventArgs keyArgs = e as KeyEventArgs;
-            return ((keyArgs != null) &&
-                    ((keyArgs.KeyStates & KeyStates.Down) == KeyStates.Down) &&
-                    (keyArgs.Key == Key.Space));
+            return (keyArgs != null) &&
+                   ((keyArgs.KeyStates & KeyStates.Down) == KeyStates.Down) &&
+                   (keyArgs.Key == Key.Space);
         }
 
         #endregion

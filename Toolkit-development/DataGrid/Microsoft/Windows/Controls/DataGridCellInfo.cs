@@ -134,11 +134,11 @@ namespace Microsoft.Windows.Controls
         /// <summary>
         ///     Whether the two objects are equal.
         /// </summary>
-        public override bool Equals(object o)
+        public override bool Equals(object obj)
         {
-            if (o is DataGridCellInfo)
+            if (obj is DataGridCellInfo)
             {
-                return EqualsImpl((DataGridCellInfo)o);
+                return EqualsImpl((DataGridCellInfo)obj);
             }
 
             return false;
@@ -147,7 +147,7 @@ namespace Microsoft.Windows.Controls
         /// <summary>
         ///     Returns whether the two values are equal.
         /// </summary>
-        public static bool operator == (DataGridCellInfo cell1, DataGridCellInfo cell2)
+        public static bool operator ==(DataGridCellInfo cell1, DataGridCellInfo cell2)
         {
             return cell1.EqualsImpl(cell2);
         }
@@ -195,7 +195,7 @@ namespace Microsoft.Windows.Controls
         internal bool IsValidForDataGrid(DataGrid dataGrid)
         {
             DataGrid owner = Owner;
-            return ArePropertyValuesValid && (owner == dataGrid) || (owner == null);
+            return (ArePropertyValuesValid && (owner == dataGrid)) || (owner == null);
         }
 
         private bool ArePropertyValuesValid

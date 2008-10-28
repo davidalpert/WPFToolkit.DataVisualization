@@ -13,7 +13,6 @@ namespace Microsoft.Windows.Controls
     /// </summary>
     public class DataGridColumnEventArgs : EventArgs
     {
-
         /// <summary>
         ///     Instantiates a new instance of this class.
         /// </summary>

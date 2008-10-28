@@ -24,7 +24,7 @@ namespace Microsoft.Windows.Controls
         /// <summary>
         ///     Checks whether or not this class can convert from a given type.
         /// </summary>
-        public override bool CanConvertFrom(ITypeDescriptorContext typeDescriptorContext, Type sourceType)
+        public override bool CanConvertFrom(ITypeDescriptorContext context, Type sourceType)
         {
             // We can only handle strings, integral and floating types
             TypeCode tc = Type.GetTypeCode(sourceType);
@@ -51,7 +51,7 @@ namespace Microsoft.Windows.Controls
         /// <summary>
         ///     Checks whether or not this class can convert to a given type.
         /// </summary>
-        public override bool CanConvertTo(ITypeDescriptorContext typeDescriptorContext, Type destinationType)
+        public override bool CanConvertTo(ITypeDescriptorContext context, Type destinationType)
         {
             return (destinationType == typeof(string)) || (destinationType == typeof(InstanceDescriptor));
         }
@@ -59,9 +59,9 @@ namespace Microsoft.Windows.Controls
         /// <summary>
         ///     Attempts to convert to a DataGridLength from the given object.
         /// </summary>
-        /// <param name="typeDescriptorContext">The ITypeDescriptorContext for this call.</param>
-        /// <param name="cultureInfo">The CultureInfo which is respected when converting.</param>
-        /// <param name="source">The object to convert to a DataGridLength.</param>
+        /// <param name="context">The ITypeDescriptorContext for this call.</param>
+        /// <param name="culture">The CultureInfo which is respected when converting.</param>
+        /// <param name="value">The object to convert to a DataGridLength.</param>
         /// <returns>The DataGridLength instance which was constructed.</returns>
         /// <exception cref="ArgumentNullException">
         ///     An ArgumentNullException is thrown if the source is null.
@@ -70,26 +70,26 @@ namespace Microsoft.Windows.Controls
         ///     An ArgumentException is thrown if the source is not null 
         ///     and is not a valid type which can be converted to a DataGridLength.
         /// </exception>
-        public override object ConvertFrom(ITypeDescriptorContext typeDescriptorContext, CultureInfo cultureInfo, object source)
+        public override object ConvertFrom(ITypeDescriptorContext context, CultureInfo culture, object value)
         {
-            if (source != null)
+            if (value != null)
             {
-                string stringSource = source as string;
+                string stringSource = value as string;
                 if (stringSource != null)
                 {
                     // Convert from string
-                    return ConvertFromString(stringSource, cultureInfo);
+                    return ConvertFromString(stringSource, culture);
                 }
                 else
                 {
                     // Conversion from numeric type
                     DataGridLengthUnitType type;
-                    double value = Convert.ToDouble(source, cultureInfo);
+                    double doubleValue = Convert.ToDouble(value, culture);
 
-                    if (DoubleUtil.IsNaN(value))
+                    if (DoubleUtil.IsNaN(doubleValue))
                     {
                         // This allows for conversion from Width / Height = "Auto" 
-                        value = 1.0;
+                        doubleValue = 1.0;
                         type = DataGridLengthUnitType.Auto;
                     }
                     else
@@ -97,22 +97,22 @@ namespace Microsoft.Windows.Controls
                         type = DataGridLengthUnitType.Pixel;
                     }
 
-                    if (!Double.IsInfinity(value))
+                    if (!Double.IsInfinity(doubleValue))
                     {
-                        return new DataGridLength(value, type);
+                        return new DataGridLength(doubleValue, type);
                     }
                 }
             }
 
             // The default exception to throw in ConvertFrom
-            throw GetConvertFromException(source);
+            throw GetConvertFromException(value);
         }
 
         /// <summary>
         ///     Attempts to convert a DataGridLength instance to the given type.
         /// </summary>
-        /// <param name="typeDescriptorContext">The ITypeDescriptorContext for this call.</param>
-        /// <param name="cultureInfo">The CultureInfo which is respected when converting.</param>
+        /// <param name="context">The ITypeDescriptorContext for this call.</param>
+        /// <param name="culture">The CultureInfo which is respected when converting.</param>
         /// <param name="value">The DataGridLength to convert.</param>
         /// <param name="destinationType">The type to which to convert the DataGridLength instance.</param>
         /// <returns>
@@ -125,14 +125,14 @@ namespace Microsoft.Windows.Controls
         ///     An ArgumentException is thrown if the value is not null and is not a DataGridLength,
         ///     or if the destinationType isn't one of the valid destination types.
         /// </exception>
-        ///<SecurityNote>
+        /// <SecurityNote>
         ///     Critical: calls InstanceDescriptor ctor which LinkDemands
         ///     PublicOK: can only make an InstanceDescriptor for DataGridLength, not an arbitrary class
-        ///</SecurityNote> 
+        /// </SecurityNote> 
         [SecurityCritical]
         public override object ConvertTo(
-            ITypeDescriptorContext typeDescriptorContext,
-            CultureInfo cultureInfo,
+            ITypeDescriptorContext context,
+            CultureInfo culture,
             object value,
             Type destinationType)
         {
@@ -147,7 +147,7 @@ namespace Microsoft.Windows.Controls
 
                 if (destinationType == typeof(string))
                 {
-                    return ConvertToString(length, cultureInfo);
+                    return ConvertToString(length, culture);
                 }
 
                 if (destinationType == typeof(InstanceDescriptor))
@@ -176,7 +176,7 @@ namespace Microsoft.Windows.Controls
                 case DataGridLengthUnitType.SizeToHeader:
                     return length.UnitType.ToString();
 
-                //  Star has one special case when value is "1.0" in which the value can be dropped.
+                // Star has one special case when value is "1.0" in which the value can be dropped.
                 case DataGridLengthUnitType.Star:
                     return DoubleUtil.IsOne(length.Value) ? "*" : Convert.ToString(length.Value, cultureInfo) + "*";
 
@@ -211,7 +211,7 @@ namespace Microsoft.Windows.Controls
             // In these cases, there is no need to parse a value.
             for (int i = 0; i < NumDescriptiveUnits; i++)
             {
-                string unitString = UnitStrings[i];
+                string unitString = _unitStrings[i];
                 if (goodString == unitString)
                 {
                     return new DataGridLength(1.0, (DataGridLengthUnitType)i);
@@ -225,13 +225,13 @@ namespace Microsoft.Windows.Controls
             double unitFactor = 1.0;
 
             // Check if the string contains a non-descriptive unit at the end.
-            int numUnitStrings = UnitStrings.Length;
+            int numUnitStrings = _unitStrings.Length;
             for (int i = NumDescriptiveUnits; i < numUnitStrings; i++)
             {
-                string unitString = UnitStrings[i];
+                string unitString = _unitStrings[i];
 
-                //  Note: This is NOT a culture specific comparison.
-                //  This is by design: we want the same unit string table to work across all cultures.
+                // Note: This is NOT a culture specific comparison.
+                // This is by design: we want the same unit string table to work across all cultures.
                 if (goodString.EndsWith(unitString, StringComparison.Ordinal))
                 {
                     strLenUnit = unitString.Length;
@@ -240,20 +240,20 @@ namespace Microsoft.Windows.Controls
                 }
             }
 
-            //  Couldn't match a standard unit type, try a non-standard unit type.
+            // Couldn't match a standard unit type, try a non-standard unit type.
             if (strLenUnit == 0)
             {
-                numUnitStrings = NonStandardUnitStrings.Length;
+                numUnitStrings = _nonStandardUnitStrings.Length;
                 for (int i = 0; i < numUnitStrings; i++)
                 {
-                    string unitString = NonStandardUnitStrings[i];
+                    string unitString = _nonStandardUnitStrings[i];
 
-                    //  Note: This is NOT a culture specific comparison.
-                    //  This is by design: we want the same unit string table to work across all cultures.
+                    // Note: This is NOT a culture specific comparison.
+                    // This is by design: we want the same unit string table to work across all cultures.
                     if (goodString.EndsWith(unitString, StringComparison.Ordinal))
                     {
                         strLenUnit = unitString.Length;
-                        unitFactor = PixelUnitFactors[i];
+                        unitFactor = _pixelUnitFactors[i];
                         break;
                     }
                 }
@@ -272,7 +272,8 @@ namespace Microsoft.Windows.Controls
             else
             {
                 // Parse a numerical value
-                Debug.Assert((unit == DataGridLengthUnitType.Pixel) || DoubleUtil.AreClose(unitFactor, 1.0),
+                Debug.Assert(
+                    (unit == DataGridLengthUnitType.Pixel) || DoubleUtil.AreClose(unitFactor, 1.0),
                     "unitFactor should not be other than 1.0 unless the unit type is Pixel.");
 
                 string valueString = goodString.Substring(0, strLen - strLenUnit);
@@ -282,19 +283,18 @@ namespace Microsoft.Windows.Controls
             return new DataGridLength(value, unit);
         }
 
-        private static string[] UnitStrings = { "auto", "px", "sizetocells", "sizetoheader", "*" };
+        private static string[] _unitStrings = { "auto", "px", "sizetocells", "sizetoheader", "*" };
         private const int NumDescriptiveUnits = 3;
 
         // This array contains strings for unit types not included in the standard set
-        private static string[] NonStandardUnitStrings = { "in", "cm", "pt" };
+        private static string[] _nonStandardUnitStrings = { "in", "cm", "pt" };
 
         // These are conversion factors to transform other units to pixels
-        private static double[] PixelUnitFactors = 
+        private static double[] _pixelUnitFactors = 
         { 
             96.0,             // Pixels per Inch
             96.0 / 2.54,      // Pixels per Centimeter
-            96.0 / 72.0,      // Pixels per Point
+            96.0 / 72.0,      // Pixels per Point 
         };
-
     }
 }

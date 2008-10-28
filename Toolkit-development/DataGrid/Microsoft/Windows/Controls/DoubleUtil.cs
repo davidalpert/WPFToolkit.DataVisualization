@@ -5,16 +5,16 @@
 //---------------------------------------------------------------------------
 
 using System;
-using System.Windows;
 using System.Runtime.InteropServices;
+using System.Windows;
 
 namespace MS.Internal
 {
     internal static class DoubleUtil
     {
         // Const values come from sdk\inc\crt\float.h
-        internal const double DBL_EPSILON  =   2.2204460492503131e-016; /* smallest such that 1.0+DBL_EPSILON != 1.0 */
-        internal const float  FLT_MIN      =   1.175494351e-38F; /* Number close to zero, where float.MinValue is -float.MaxValue */
+        internal const double DBL_EPSILON = 2.2204460492503131e-016; /* smallest such that 1.0+DBL_EPSILON != 1.0 */
+        internal const float FLT_MIN = 1.175494351e-38F; /* Number close to zero, where float.MinValue is -float.MaxValue */
 
         /// <summary>
         /// AreClose - Returns whether or not two doubles are "close".  That is, whether or 
@@ -33,12 +33,16 @@ namespace MS.Internal
         /// <param name="value2"> The second double to compare. </param>
         public static bool AreClose(double value1, double value2)
         {
-            //in case they are Infinities (then epsilon check does not work)
-            if(value1 == value2) return true;
+            // in case they are Infinities (then epsilon check does not work)
+            if (value1 == value2)
+            {
+                return true;
+            }
+
             // This computes (|value1-value2| / (|value1| + |value2| + 10.0)) < DBL_EPSILON
             double eps = (Math.Abs(value1) + Math.Abs(value2) + 10.0) * DBL_EPSILON;
             double delta = value1 - value2;
-            return(-eps < delta) && (eps > delta);
+            return (-eps < delta) && (eps > delta);
         }
 
         /// <summary>
@@ -61,7 +65,6 @@ namespace MS.Internal
         {
             return (value1 < value2) && !AreClose(value1, value2);
         }
-
 
         /// <summary>
         /// GreaterThan - Returns whether or not the first double is greater than the second double.
@@ -136,7 +139,7 @@ namespace MS.Internal
         /// <param name="value"> The double to compare to 1. </param>
         public static bool IsOne(double value)
         {
-            return Math.Abs(value-1.0) < 10.0 * DBL_EPSILON;
+            return Math.Abs(value - 1.0) < 10.0 * DBL_EPSILON;
         }
 
         /// <summary>
@@ -263,13 +266,7 @@ namespace MS.Internal
         }
 
 #endif
-        [StructLayout(LayoutKind.Explicit)]
-        private struct NanUnion
-        {
-            [FieldOffset(0)] internal double DoubleValue;
-            [FieldOffset(0)] internal UInt64 UintValue;
-        }
-
+        
         // The standard CLR double.IsNaN() function is approximately 100 times slower than our own wrapper,
         // so please make sure to use DoubleUtil.IsNaN() in performance sensitive code.
         // PS item that tracks the CLR improvement is DevDiv Schedule : 26916.
@@ -280,10 +277,19 @@ namespace MS.Internal
             NanUnion t = new NanUnion();
             t.DoubleValue = value;
 
-            UInt64 exp = t.UintValue & 0xfff0000000000000;
-            UInt64 man = t.UintValue & 0x000fffffffffffff;
+            ulong exp = t.UintValue & 0xfff0000000000000;
+            ulong man = t.UintValue & 0x000fffffffffffff;
             
             return (exp == 0x7ff0000000000000 || exp == 0xfff0000000000000) && (man != 0);
+        }
+
+        [StructLayout(LayoutKind.Explicit)]
+        private struct NanUnion
+        {
+            [FieldOffset(0)]
+            internal double DoubleValue;
+            [FieldOffset(0)]
+            internal ulong UintValue;
         }
     }
 }

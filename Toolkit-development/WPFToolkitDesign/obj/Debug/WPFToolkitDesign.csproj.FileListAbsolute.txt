@@ -1,0 +1,16 @@
+D:\dd\WPF_TSV_1\src\wpf\src\ControlsPack\bin\Debug\WpfToolkit.Design.dll
+D:\dd\WPF_TSV_1\src\wpf\src\ControlsPack\bin\Debug\WpfToolkit.Design.pdb
+D:\dd\WPF_TSV_1\src\wpf\src\ControlsPack\WPFToolkitDesign\obj\Debug\ResolveAssemblyReference.cache
+D:\dd\WPF_TSV_1\src\wpf\src\ControlsPack\WPFToolkitDesign\obj\Debug\WpfToolkit.Design.g.resources
+D:\dd\WPF_TSV_1\src\wpf\src\ControlsPack\WPFToolkitDesign\obj\Debug\Microsoft.Windows.Controls.Design.Properties.Resources.resources
+D:\dd\WPF_TSV_1\src\wpf\src\ControlsPack\WPFToolkitDesign\obj\Debug\WPFToolkitDesign.csproj.GenerateResource.Cache
+D:\dd\WPF_TSV_1\src\wpf\src\ControlsPack\WPFToolkitDesign\obj\Debug\WpfToolkit.Design.dll
+D:\dd\WPF_TSV_1\src\wpf\src\ControlsPack\WPFToolkitDesign\obj\Debug\WpfToolkit.Design.pdb
+D:\wpfcodeplex\Toolkit-development\Toolkit-development\bin\Debug\WPFToolkit.Design.dll
+D:\wpfcodeplex\Toolkit-development\Toolkit-development\bin\Debug\WPFToolkit.Design.pdb
+D:\wpfcodeplex\Toolkit-development\Toolkit-development\WPFToolkitDesign\obj\Debug\ResolveAssemblyReference.cache
+D:\wpfcodeplex\Toolkit-development\Toolkit-development\WPFToolkitDesign\obj\Debug\WPFToolkit.Design.g.resources
+D:\wpfcodeplex\Toolkit-development\Toolkit-development\WPFToolkitDesign\obj\Debug\Microsoft.Windows.Controls.Design.Properties.Resources.resources
+D:\wpfcodeplex\Toolkit-development\Toolkit-development\WPFToolkitDesign\obj\Debug\WPFToolkitDesign.csproj.GenerateResource.Cache
+D:\wpfcodeplex\Toolkit-development\Toolkit-development\WPFToolkitDesign\obj\Debug\WPFToolkit.Design.dll
+D:\wpfcodeplex\Toolkit-development\Toolkit-development\WPFToolkitDesign\obj\Debug\WPFToolkit.Design.pdb

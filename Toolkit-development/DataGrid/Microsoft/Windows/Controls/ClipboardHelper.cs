@@ -6,16 +6,19 @@
 
 using System;
 using System.Collections.Generic;
-using System.Text;
-using System.IO;
 using System.Globalization;
+using System.IO;
+using System.Text;
 using System.Windows;
 
 namespace Microsoft.Windows.Controls
 {
     internal static class ClipboardHelper
     {
-
+        private const string DATAGRIDVIEW_htmlPrefix = "Version:1.0\r\nStartHTML:00000097\r\nEndHTML:{0}\r\nStartFragment:00000133\r\nEndFragment:{1}\r\n";
+        private const string DATAGRIDVIEW_htmlStartFragment = "<HTML>\r\n<BODY>\r\n<!--StartFragment-->";
+        private const string DATAGRIDVIEW_htmlEndFragment = "\r\n<!--EndFragment-->\r\n</BODY>\r\n</HTML>";
+                
         internal static void FormatCell(object cellValue, bool firstCell, bool lastCell, StringBuilder sb, string format)
         {
             bool csv = string.Equals(format, DataFormats.CommaSeparatedValue, StringComparison.OrdinalIgnoreCase);
@@ -33,8 +36,9 @@ namespace Microsoft.Windows.Controls
                     }
                 }
 
-                if (lastCell) // Last cell
+                if (lastCell) 
                 {
+                    // Last cell
                     sb.Append('\r');
                     sb.Append('\n');
                 }
@@ -45,10 +49,12 @@ namespace Microsoft.Windows.Controls
             }
             else if (string.Equals(format, DataFormats.Html, StringComparison.OrdinalIgnoreCase))
             {
-                if (firstCell) // First cell - append start of row
+                if (firstCell) 
                 {
+                    // First cell - append start of row
                     sb.Append("<TR>");
                 }
+
                 sb.Append("<TD>"); // Start cell
                 if (cellValue != null)
                 {
@@ -58,14 +64,29 @@ namespace Microsoft.Windows.Controls
                 {
                     sb.Append("&nbsp;");
                 }
+
                 sb.Append("</TD>"); // End cell
-                if (lastCell) // Last cell - append end of row
+                if (lastCell) 
                 {
+                    // Last cell - append end of row
                     sb.Append("</TR>");
                 }
             }
         }
-        
+                
+        internal static void GetClipboardContentForHtml(StringBuilder content)
+        {
+            content.Insert(0, "<TABLE>");
+            content.Append("</TABLE>");
+
+            // Marshal.SystemDefaultCharSize is 2 on WinXP Pro - so the offsets seem to be in character counts instead of bytes. 
+            int bytecountEndOfFragment = 135 + content.Length;
+            int bytecountEndOfHtml = bytecountEndOfFragment + 36;
+            string prefix = string.Format(CultureInfo.InvariantCulture, DATAGRIDVIEW_htmlPrefix, bytecountEndOfHtml.ToString("00000000", CultureInfo.InvariantCulture), bytecountEndOfFragment.ToString("00000000", CultureInfo.InvariantCulture)) + DATAGRIDVIEW_htmlStartFragment;
+            content.Insert(0, prefix);
+            content.Append(DATAGRIDVIEW_htmlEndFragment);
+        }
+
         private static void FormatPlainText(string s, bool csv, TextWriter output, ref bool escapeApplied)
         {
             if (s != null)
@@ -85,6 +106,7 @@ namespace Microsoft.Windows.Controls
                             {
                                 output.Write('\t');
                             }
+
                             break;
 
                         case '"':
@@ -97,6 +119,7 @@ namespace Microsoft.Windows.Controls
                             {
                                 output.Write('"');
                             }
+
                             break;
 
                         case ',':
@@ -104,6 +127,7 @@ namespace Microsoft.Windows.Controls
                             {
                                 escapeApplied = true;
                             }
+
                             output.Write(',');
                             break;
 
@@ -112,29 +136,13 @@ namespace Microsoft.Windows.Controls
                             break;
                     }
                 }
+
                 if (escapeApplied)
                 {
                     output.Write('"');
                 }
             }
         }
-        
-        internal static void GetClipboardContentForHtml(StringBuilder sbContent)
-        {
-            sbContent.Insert(0, "<TABLE>");
-            sbContent.Append("</TABLE>");
-
-            // Marshal.SystemDefaultCharSize is 2 on WinXP Pro - so the offsets seem to be in character counts instead of bytes. 
-            int bytecountEndOfFragment = 135 + sbContent.Length;
-            int bytecountEndOfHtml = bytecountEndOfFragment + 36;
-            string prefix = string.Format(CultureInfo.InvariantCulture, DATAGRIDVIEW_htmlPrefix, bytecountEndOfHtml.ToString("00000000", CultureInfo.InvariantCulture), bytecountEndOfFragment.ToString("00000000", CultureInfo.InvariantCulture)) + DATAGRIDVIEW_htmlStartFragment;
-            sbContent.Insert(0, prefix);
-            sbContent.Append(DATAGRIDVIEW_htmlEndFragment);
-        }
-
-        private const string DATAGRIDVIEW_htmlPrefix = "Version:1.0\r\nStartHTML:00000097\r\nEndHTML:{0}\r\nStartFragment:00000133\r\nEndFragment:{1}\r\n";
-        private const string DATAGRIDVIEW_htmlStartFragment = "<HTML>\r\n<BODY>\r\n<!--StartFragment-->";
-        private const string DATAGRIDVIEW_htmlEndFragment = "\r\n<!--EndFragment-->\r\n</BODY>\r\n</HTML>";
 
         // Code taken from ASP.NET file xsp\System\Web\httpserverutility.cs; same in DataGridViewCell.cs
         private static void FormatPlainTextAsHtml(string s, TextWriter output)
@@ -173,6 +181,7 @@ namespace Microsoft.Windows.Controls
                         {
                             output.Write(ch);
                         }
+
                         break;
                     case '\r':
                         // Ignore \r, only handle \n
@@ -180,6 +189,7 @@ namespace Microsoft.Windows.Controls
                     case '\n':
                         output.Write("<br>");
                         break;
+
                     // REVIEW: what to do with tabs?  See original code in xsp\System\Web\httpserverutility.cs
                     default:
                         // The seemingly arbitrary 160 comes from RFC
@@ -193,12 +203,12 @@ namespace Microsoft.Windows.Controls
                         {
                             output.Write(ch);
                         }
+
                         break;
                 }
+
                 prevCh = ch;
             }
         }
-
-
     }
 }

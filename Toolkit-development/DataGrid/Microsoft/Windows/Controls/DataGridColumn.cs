@@ -21,14 +21,6 @@ namespace Microsoft.Windows.Controls
     /// </summary>
     public abstract class DataGridColumn : DependencyObject
     {
-        #region Constructors
-
-        public DataGridColumn()
-        {
-        }
-
-        #endregion
-
         #region Header
 
         /// <summary>
@@ -45,7 +37,6 @@ namespace Microsoft.Windows.Controls
         /// </summary>
         public static readonly DependencyProperty HeaderProperty =
             DependencyProperty.Register("Header", typeof(object), typeof(DataGridColumn), new FrameworkPropertyMetadata(null, new PropertyChangedCallback(OnNotifyColumnHeaderPropertyChanged)));
-
 
         /// <summary>
         ///     The Style for the DataGridColumnHeader
@@ -65,9 +56,12 @@ namespace Microsoft.Windows.Controls
         private static object OnCoerceHeaderStyle(DependencyObject d, object baseValue)
         {
             var column = d as DataGridColumn;
-            return DataGridHelper.GetCoercedTransferPropertyValue(column, baseValue, HeaderStyleProperty,
-                                                                  column.DataGridOwner, DataGrid.ColumnHeaderStyleProperty,
-                                                                  null, null);
+            return DataGridHelper.GetCoercedTransferPropertyValue(
+                column, 
+                baseValue, 
+                HeaderStyleProperty,
+                column.DataGridOwner, 
+                DataGrid.ColumnHeaderStyleProperty);
         }
 
         /// <summary>
@@ -137,15 +131,18 @@ namespace Microsoft.Windows.Controls
         private static object OnCoerceCellStyle(DependencyObject d, object baseValue)
         {
             var column = d as DataGridColumn;
-            return DataGridHelper.GetCoercedTransferPropertyValue(column, baseValue, CellStyleProperty,
-                                                                  column.DataGridOwner, DataGrid.CellStyleProperty,
-                                                                  null, null);
+            return DataGridHelper.GetCoercedTransferPropertyValue(
+                column, 
+                baseValue, 
+                CellStyleProperty,                
+                column.DataGridOwner, 
+                DataGrid.CellStyleProperty);
         }
 
         /// <summary>
         ///     Whether cells in this column can enter edit mode.
         /// </summary>
-        internal bool IsReadOnly
+        public bool IsReadOnly
         {
             get { return (bool)GetValue(IsReadOnlyProperty); }
             set { SetValue(IsReadOnlyProperty, value); }
@@ -154,16 +151,18 @@ namespace Microsoft.Windows.Controls
         /// <summary>
         ///     The DependencyProperty that represents the IsReadOnly property.
         /// </summary>
-        internal static readonly DependencyProperty IsReadOnlyProperty =
+        public static readonly DependencyProperty IsReadOnlyProperty =
             DependencyProperty.Register("IsReadOnly", typeof(bool), typeof(DataGridColumn), new FrameworkPropertyMetadata(false, OnNotifyCellPropertyChanged, OnCoerceIsReadOnly));
-
 
         private static object OnCoerceIsReadOnly(DependencyObject d, object baseValue)
         {
             var column = d as DataGridColumn;
-            return DataGridHelper.GetCoercedTransferPropertyValue(column, baseValue, IsReadOnlyProperty,
-                                                                  column.DataGridOwner, DataGrid.IsReadOnlyProperty,
-                                                                  null, null);
+            return DataGridHelper.GetCoercedTransferPropertyValue(
+                column, 
+                baseValue, 
+                IsReadOnlyProperty,
+                column.DataGridOwner, 
+                DataGrid.IsReadOnlyProperty);
         }
 
         #endregion
@@ -183,11 +182,95 @@ namespace Microsoft.Windows.Controls
         ///     The DependencyProperty that represents the Width property.
         /// </summary>
         public static readonly DependencyProperty WidthProperty =
-            DependencyProperty.Register("Width", typeof(DataGridLength), typeof(DataGridColumn), 
-                                        new FrameworkPropertyMetadata(DataGridLength.Auto, 
-                                                                      new PropertyChangedCallback(OnNotifyColumnWidthPropertyChanged),
-                                                                      new CoerceValueCallback(OnCoerceWidth)));
+            DependencyProperty.Register(
+                "Width", 
+                typeof(DataGridLength), 
+                typeof(DataGridColumn), 
+                new FrameworkPropertyMetadata(DataGridLength.Auto, new PropertyChangedCallback(OnWidthPropertyChanged), new CoerceValueCallback(OnCoerceWidth)));
 
+        /// <summary>
+        /// Internal method which sets the column's width
+        /// without actual redistribution of widths among other
+        /// columns
+        /// </summary>
+        /// <param name="width"></param>
+        internal void SetWidthInternal(DataGridLength width)
+        {
+            bool originalValue = _ignoreRedistributionOnWidthChange;
+            _ignoreRedistributionOnWidthChange = true;
+            try
+            {
+                Width = width;
+            }
+            finally
+            {
+                _ignoreRedistributionOnWidthChange = originalValue;
+            }
+        }
+
+        /// <summary>
+        /// Property changed call back for Width property which notification propagation
+        /// and does the redistribution of widths among other columns if needed
+        /// </summary>
+        /// <param name="d"></param>
+        /// <param name="e"></param>
+        private static void OnWidthPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            DataGridColumn column = (DataGridColumn)d;
+            DataGridLength oldWidth = (DataGridLength)e.OldValue;
+            DataGridLength newWidth = (DataGridLength)e.NewValue;
+            DataGrid dataGrid = column.DataGridOwner;
+
+            if (dataGrid != null &&
+                !DoubleUtil.AreClose(oldWidth.DisplayValue, newWidth.DisplayValue))
+            {
+                dataGrid.InternalColumns.InvalidateAverageColumnWidth();
+            }
+
+            if (column._processingWidthChange)
+            {
+                column.CoerceValue(ActualWidthProperty);
+                return;
+            }
+
+            column._processingWidthChange = true;
+            try
+            {
+                if (dataGrid != null && (newWidth.IsStar ^ oldWidth.IsStar))
+                {
+                    dataGrid.InternalColumns.InvalidateHasVisibleStarColumns();
+                }
+
+                column.NotifyPropertyChanged(
+                    d, 
+                    e, 
+                    NotificationTarget.ColumnCollection |
+                    NotificationTarget.Columns | 
+                    NotificationTarget.Cells | 
+                    NotificationTarget.ColumnHeaders |
+                    NotificationTarget.CellsPresenter |
+                    NotificationTarget.ColumnHeadersPresenter);
+
+                if (dataGrid != null)
+                {
+                    if (!column._ignoreRedistributionOnWidthChange && column.IsVisible)
+                    {
+                        if (!newWidth.IsStar && !newWidth.IsAbsolute)
+                        {
+                            DataGridLength changedWidth = column.Width;
+                            double displayValue = DataGridHelper.CoerceToMinMax(changedWidth.DesiredValue, column.MinWidth, column.MaxWidth);
+                            column.SetWidthInternal(new DataGridLength(changedWidth.Value, changedWidth.UnitType, changedWidth.DesiredValue, displayValue));
+                        }
+
+                        dataGrid.InternalColumns.RedistributeColumnWidthsOnWidthChangeOfColumn(column, (DataGridLength)e.OldValue);
+                    }
+                }
+            }
+            finally
+            {
+                column._processingWidthChange = false;
+            }
+        }
 
         /// <summary>
         ///     Specifies the minimum width of the header and cells within this column.
@@ -202,12 +285,31 @@ namespace Microsoft.Windows.Controls
         ///     The DependencyProperty that represents the MinWidth property.
         /// </summary>
         public static readonly DependencyProperty MinWidthProperty =
-            DependencyProperty.Register("MinWidth", typeof(double), typeof(DataGridColumn),
-                                        new FrameworkPropertyMetadata(20d, 
-                                                                      new PropertyChangedCallback(OnNotifyColumnWidthPropertyChanged),
-                                                                      new CoerceValueCallback(OnCoerceMinWidth)),
-                                        new ValidateValueCallback(ValidateMaxWidth));
+            DependencyProperty.Register(
+                "MinWidth", 
+                typeof(double), 
+                typeof(DataGridColumn),
+                new FrameworkPropertyMetadata(20d, new PropertyChangedCallback(OnMinWidthPropertyChanged), new CoerceValueCallback(OnCoerceMinWidth)), 
+                new ValidateValueCallback(ValidateMinWidth));
 
+        /// <summary>
+        /// Property changed call back for MinWidth property which notification propagation
+        /// and does the redistribution of widths among other columns if needed
+        /// </summary>
+        /// <param name="d"></param>
+        /// <param name="e"></param>
+        private static void OnMinWidthPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            DataGridColumn column = (DataGridColumn)d;
+            DataGrid dataGrid = column.DataGridOwner;
+
+            column.NotifyPropertyChanged(d, e, NotificationTarget.Columns);
+
+            if (dataGrid != null && column.IsVisible)
+            {
+                dataGrid.InternalColumns.RedistributeColumnWidthsOnMinWidthChangeOfColumn(column, (double)e.OldValue);
+            }
+        }
 
         /// <summary>
         ///     Specifies the maximum width of the header and cells within this column.
@@ -222,11 +324,31 @@ namespace Microsoft.Windows.Controls
         ///     The DependencyProperty that represents the MaxWidth property.
         /// </summary>
         public static readonly DependencyProperty MaxWidthProperty =
-            DependencyProperty.Register("MaxWidth", typeof(double), typeof(DataGridColumn),
-                                        new FrameworkPropertyMetadata(double.PositiveInfinity, 
-                                                                      new PropertyChangedCallback(OnNotifyColumnWidthPropertyChanged),
-                                                                      new CoerceValueCallback(OnCoerceMaxWidth)),
-                                        new ValidateValueCallback(ValidateMaxWidth));
+            DependencyProperty.Register(
+                "MaxWidth", 
+                typeof(double), 
+                typeof(DataGridColumn),
+                new FrameworkPropertyMetadata(double.PositiveInfinity, new PropertyChangedCallback(OnMaxWidthPropertyChanged), new CoerceValueCallback(OnCoerceMaxWidth)),
+                new ValidateValueCallback(ValidateMaxWidth));
+
+        /// <summary>
+        /// Property changed call back for MaxWidth property which notification propagation
+        /// and does the redistribution of widths among other columns if needed
+        /// </summary>
+        /// <param name="d"></param>
+        /// <param name="e"></param>
+        private static void OnMaxWidthPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            DataGridColumn column = (DataGridColumn)d;
+            DataGrid dataGrid = column.DataGridOwner;
+
+            column.NotifyPropertyChanged(d, e, NotificationTarget.Columns);
+
+            if (dataGrid != null && column.IsVisible)
+            {
+                dataGrid.InternalColumns.RedistributeColumnWidthsOnMaxWidthChangeOfColumn(column, (double)e.OldValue);
+            }
+        }
 
         /// <summary>
         ///     Coerces the WidthProperty based on the DataGrid transferred property rules
@@ -234,9 +356,25 @@ namespace Microsoft.Windows.Controls
         private static object OnCoerceWidth(DependencyObject d, object baseValue)
         {
             var column = d as DataGridColumn;
-            return DataGridHelper.GetCoercedTransferPropertyValue(column, baseValue, WidthProperty,
-                                                                  column.DataGridOwner, DataGrid.ColumnWidthProperty,
-                                                                  null, null);
+            DataGridLength width = (DataGridLength)DataGridHelper.GetCoercedTransferPropertyValue(
+                column, 
+                baseValue, 
+                WidthProperty,
+                column.DataGridOwner, 
+                DataGrid.ColumnWidthProperty);
+
+            double newDisplayValue = 
+                (DoubleUtil.IsNaN(width.DisplayValue) ? width.DisplayValue : DataGridHelper.CoerceToMinMax(width.DisplayValue, column.MinWidth, column.MaxWidth));
+            if (DoubleUtil.IsNaN(newDisplayValue) || DoubleUtil.AreClose(newDisplayValue, width.DisplayValue))
+            {
+                return width;
+            }
+
+            return new DataGridLength(
+                width.Value,
+                width.UnitType,
+                width.DesiredValue,
+                newDisplayValue);
         }
 
         /// <summary>
@@ -245,9 +383,12 @@ namespace Microsoft.Windows.Controls
         private static object OnCoerceMinWidth(DependencyObject d, object baseValue)
         {
             var column = d as DataGridColumn;
-            return DataGridHelper.GetCoercedTransferPropertyValue(column, baseValue, MinWidthProperty,
-                                                                  column.DataGridOwner, DataGrid.MinColumnWidthProperty,
-                                                                  null, null);
+            return DataGridHelper.GetCoercedTransferPropertyValue(
+                column, 
+                baseValue, 
+                MinWidthProperty,                
+                column.DataGridOwner, 
+                DataGrid.MinColumnWidthProperty);
         }
 
         /// <summary>
@@ -256,9 +397,12 @@ namespace Microsoft.Windows.Controls
         private static object OnCoerceMaxWidth(DependencyObject d, object baseValue)
         {
             var column = d as DataGridColumn;
-            return DataGridHelper.GetCoercedTransferPropertyValue(column, baseValue, MaxWidthProperty,
-                                                                  column.DataGridOwner, DataGrid.MaxColumnWidthProperty,
-                                                                  null, null);
+            return DataGridHelper.GetCoercedTransferPropertyValue(
+                column, 
+                baseValue, 
+                MaxWidthProperty,
+                column.DataGridOwner, 
+                DataGrid.MaxColumnWidthProperty);
         }
 
         /// <summary>
@@ -289,7 +433,7 @@ namespace Microsoft.Windows.Controls
         }
 
         public static readonly DependencyPropertyKey ActualWidthPropertyKey =
-            DependencyProperty.RegisterReadOnly("ActualWidth", typeof(double), typeof(DataGridColumn), new FrameworkPropertyMetadata(0.0, new PropertyChangedCallback(OnNotifyColumnWidthPropertyChanged), new CoerceValueCallback(OnCoerceActualWidth)));
+            DependencyProperty.RegisterReadOnly("ActualWidth", typeof(double), typeof(DataGridColumn), new FrameworkPropertyMetadata(0.0, null, new CoerceValueCallback(OnCoerceActualWidth)));
 
         internal static readonly DependencyProperty ActualWidthProperty = ActualWidthPropertyKey.DependencyProperty;
 
@@ -304,7 +448,7 @@ namespace Microsoft.Windows.Controls
             DataGridLength width = column.Width;
             if (width.IsAbsolute)
             {
-                actualWidth = width.Value;
+                actualWidth = width.DisplayValue;
             }
 
             if (actualWidth < minWidth)
@@ -327,6 +471,11 @@ namespace Microsoft.Windows.Controls
         internal double GetConstraintWidth(bool isHeader)
         {
             DataGridLength width = Width;
+            if (!DoubleUtil.IsNaN(width.DisplayValue))
+            {
+                return width.DisplayValue;
+            }
+
             if (width.IsAbsolute || 
                 width.IsStar ||
                 (width.IsSizeToCells && isHeader) ||
@@ -345,43 +494,69 @@ namespace Microsoft.Windows.Controls
 
         /// <summary>
         ///     Notifies the column of a cell's desired width.
-        ///     Updates the actual width if necessary and returns the
-        ///     value of ActualWith.
+        ///     Updates the actual width if necessary
         /// </summary>
         /// <param name="isHeader">Whether the cell is a header or not.</param>
         /// <param name="pixelWidth">The desired size of the cell.</param>
-        /// <returns>The current value of ActualWidth.</returns>
-        internal double UpdateDesiredWidth(bool isHeader, double pixelWidth)
+        internal void UpdateDesiredWidthForAutoColumn(bool isHeader, double pixelWidth)
         {
             DataGridLength width = Width;
+            double minWidth = MinWidth;
+            double maxWidth = MaxWidth;
+            double displayWidth = DataGridHelper.CoerceToMinMax(pixelWidth, minWidth, maxWidth);
 
             if (width.IsAuto || 
                 (width.IsSizeToCells && !isHeader) ||
                 (width.IsSizeToHeader && isHeader))
             {
-                // In these cases, the new size matters
-                if (ActualWidth < pixelWidth)
+                if (DoubleUtil.IsNaN(width.DesiredValue) ||
+                    DoubleUtil.LessThan(width.DesiredValue, pixelWidth))
                 {
-                    ActualWidth = pixelWidth;
+                    if (DoubleUtil.IsNaN(width.DisplayValue))
+                    {
+                        SetWidthInternal(new DataGridLength(width.Value, width.UnitType, pixelWidth, displayWidth));
+                    }
+                    else
+                    {
+                        double originalDesiredValue = DataGridHelper.CoerceToMinMax(width.DesiredValue, minWidth, maxWidth);
+                        SetWidthInternal(new DataGridLength(width.Value, width.UnitType, pixelWidth, width.DisplayValue));
+                        if (DoubleUtil.AreClose(originalDesiredValue, width.DisplayValue))
+                        {
+                            DataGridOwner.InternalColumns.RecomputeColumnWidthsOnColumnResize(this, pixelWidth - width.DisplayValue, true);
+                        }
+                    }
+
+                    width = Width;
+                }
+
+                if (DoubleUtil.IsNaN(width.DisplayValue))
+                {
+                    if (ActualWidth < displayWidth)
+                    {
+                        ActualWidth = displayWidth;
+                    }
+                }
+                else if (!DoubleUtil.AreClose(ActualWidth, width.DisplayValue))
+                {
+                    ActualWidth = width.DisplayValue;
                 }
             }
-            else if (width.IsStar)
-            {
-                return MinWidth;
-            }
-
-            return ActualWidth;
         }
 
         /// <summary>
         ///     Notifies the column that Width="*" columns have a new actual width.
         /// </summary>
-        internal void UpdateActualWidth(double pixelWidth)
+        internal void UpdateWidthForStarColumn(double displayWidth, double desiredWidth, double starValue)
         {
             Debug.Assert(Width.IsStar);
-            if (!DoubleUtil.AreClose(pixelWidth, ActualWidth))
+            DataGridLength width = Width;
+
+            if (!DoubleUtil.AreClose(displayWidth, width.DisplayValue) ||
+                !DoubleUtil.AreClose(desiredWidth, width.DesiredValue) ||
+                !DoubleUtil.AreClose(width.Value, starValue))
             {
-                ActualWidth = pixelWidth;
+                SetWidthInternal(new DataGridLength(starValue, width.UnitType, desiredWidth, displayWidth));
+                ActualWidth = displayWidth;
             }
         }
 
@@ -478,7 +653,7 @@ namespace Microsoft.Windows.Controls
         /// </summary>
         /// <param name="editingElement">A reference to element returned by GenerateEditingElement.</param>
         /// <returns>The unedited value of the cell.</returns>
-        protected virtual object PrepareCellForEdit(FrameworkElement editingElement, RoutedEventArgs e)
+        protected virtual object PrepareCellForEdit(FrameworkElement editingElement, RoutedEventArgs editingEventArgs)
         {
             return null;
         }
@@ -497,30 +672,52 @@ namespace Microsoft.Windows.Controls
         ///     Called when a cell's value is to be committed, just before it exits edit mode.
         /// </summary>
         /// <param name="editingElement">A reference to element returned by GenerateEditingElement.</param>
-        protected virtual void CommitCellEdit(FrameworkElement editingElement)
+        /// <returns>false if there is a validation error. true otherwise.</returns>
+        protected virtual bool CommitCellEdit(FrameworkElement editingElement)
         {
+            return true;
         }
 
         internal void BeginEdit(FrameworkElement editingElement, RoutedEventArgs e)
         {
             // This call is to ensure that the tree and its bindings have resolved
             // before we proceed to code that relies on the tree being ready.
-            editingElement.UpdateLayout();
+            if (editingElement != null)
+            {
+                editingElement.UpdateLayout();
 
-            object originalValue = PrepareCellForEdit(editingElement, e);
-            SetOriginalValue(editingElement, originalValue);
+                object originalValue = PrepareCellForEdit(editingElement, e);
+                SetOriginalValue(editingElement, originalValue);
+            }
         }
 
         internal void CancelEdit(FrameworkElement editingElement)
         {
-            CancelCellEdit(editingElement, GetOriginalValue(editingElement));
-            ClearOriginalValue(editingElement);
+            if (editingElement != null)
+            {
+                CancelCellEdit(editingElement, GetOriginalValue(editingElement));
+                ClearOriginalValue(editingElement);
+            }
         }
 
-        internal void CommitEdit(FrameworkElement editingElement)
+        internal bool CommitEdit(FrameworkElement editingElement)
         {
-            CommitCellEdit(editingElement);
-            ClearOriginalValue(editingElement);
+            if (editingElement != null)
+            {
+                if (CommitCellEdit(editingElement))
+                {
+                    // Validation passed
+                    ClearOriginalValue(editingElement);
+                    return true;
+                }
+                else
+                {
+                    // Validation failed. This cell will remain in edit mode.
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private static object GetOriginalValue(DependencyObject obj)
@@ -539,7 +736,7 @@ namespace Microsoft.Windows.Controls
         }
 
         private static readonly DependencyProperty OriginalValueProperty =
-            DependencyProperty.RegisterAttached("OriginalValue", typeof(object), typeof(DataGridBoundColumn), new FrameworkPropertyMetadata(null));
+            DependencyProperty.RegisterAttached("OriginalValue", typeof(object), typeof(DataGridColumn), new FrameworkPropertyMetadata(null));
 
         #endregion
 
@@ -550,7 +747,7 @@ namespace Microsoft.Windows.Controls
         /// </summary>
         internal static void OnNotifyCellPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
-            ((DataGridColumn)d).NotifyPropertyChanged(d, e, NotificationTarget.Cells);
+            ((DataGridColumn)d).NotifyPropertyChanged(d, e, NotificationTarget.Columns | NotificationTarget.Cells);
         }
 
         /// <summary>
@@ -559,14 +756,6 @@ namespace Microsoft.Windows.Controls
         private static void OnNotifyColumnHeaderPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             ((DataGridColumn)d).NotifyPropertyChanged(d, e, NotificationTarget.Columns | NotificationTarget.ColumnHeaders);
-        }
-
-        /// <summary>
-        ///     Notifies parts that respond to changes in the column width (column headers and cells).
-        /// </summary>
-        private static void OnNotifyColumnWidthPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-        {
-            ((DataGridColumn)d).NotifyPropertyChanged(d, e, NotificationTarget.ColumnCollection | NotificationTarget.Columns | NotificationTarget.Cells | NotificationTarget.ColumnHeaders);
         }
 
         /// <summary>
@@ -719,9 +908,11 @@ namespace Microsoft.Windows.Controls
         ///     The DependencyProperty that represents the Width property.
         /// </summary>
         public static readonly DependencyProperty DisplayIndexProperty =
-            DependencyProperty.Register("DisplayIndex", typeof(int), typeof(DataGridColumn), 
-                                        new FrameworkPropertyMetadata(-1, new PropertyChangedCallback(DisplayIndexChanged),
-                                                                          new CoerceValueCallback(OnCoerceDisplayIndex)));
+            DependencyProperty.Register(
+                "DisplayIndex", 
+                typeof(int), 
+                typeof(DataGridColumn), 
+                new FrameworkPropertyMetadata(-1, new PropertyChangedCallback(DisplayIndexChanged), new CoerceValueCallback(OnCoerceDisplayIndex)));
 
         /// <summary>
         ///     We use the coersion callback to validate that the DisplayIndex of a column is between 0 and DataGrid.Columns.Count
@@ -745,7 +936,15 @@ namespace Microsoft.Windows.Controls
         private static void DisplayIndexChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             // Cells and ColumnHeaders invalidate Arrange; ColumnCollection handles modifying the DisplayIndex of other columns.
-            ((DataGridColumn)d).NotifyPropertyChanged(d, e, NotificationTarget.Columns | NotificationTarget.ColumnCollection | NotificationTarget.Cells | NotificationTarget.ColumnHeaders);
+            ((DataGridColumn)d).NotifyPropertyChanged(
+                d, 
+                e, 
+                NotificationTarget.Columns | 
+                NotificationTarget.ColumnCollection | 
+                NotificationTarget.Cells | 
+                NotificationTarget.ColumnHeaders | 
+                NotificationTarget.CellsPresenter | 
+                NotificationTarget.ColumnHeadersPresenter);
         }
 
         #endregion
@@ -756,10 +955,11 @@ namespace Microsoft.Windows.Controls
         /// Dependency property for SortMemberPath
         /// </summary>
         public static readonly DependencyProperty SortMemberPathProperty =
-            DependencyProperty.Register("SortMemberPath",
-                                        typeof(string),
-                                        typeof(DataGridColumn),
-                                        new FrameworkPropertyMetadata(String.Empty));
+            DependencyProperty.Register(
+                "SortMemberPath",
+                typeof(string),
+                typeof(DataGridColumn),
+                new FrameworkPropertyMetadata(String.Empty));
 
         /// <summary>
         /// The property which the determines the member to be sorted upon when sorted on this column
@@ -774,12 +974,11 @@ namespace Microsoft.Windows.Controls
         /// Dependecy property for CanUserSort
         /// </summary>
         public static readonly DependencyProperty CanUserSortProperty =
-            DependencyProperty.Register("CanUserSort",
-                                        typeof(bool),
-                                        typeof(DataGridColumn),
-                                        new FrameworkPropertyMetadata(true,
-                                            new PropertyChangedCallback(OnNotifySortPropertyChanged),
-                                            new CoerceValueCallback(OnCoerceCanUserSort)));
+            DependencyProperty.Register(
+                "CanUserSort",
+                typeof(bool),
+                typeof(DataGridColumn),
+                new FrameworkPropertyMetadata(true, new PropertyChangedCallback(OnNotifySortPropertyChanged), new CoerceValueCallback(OnCoerceCanUserSort)));
 
         /// <summary>
         /// The property which determines whether the datagrid can be sorted upon this column or not
@@ -794,10 +993,11 @@ namespace Microsoft.Windows.Controls
         /// Dependency property for SrtDirection
         /// </summary>
         public static readonly DependencyProperty SortDirectionProperty =
-            DependencyProperty.Register("SortDirection",
-                                        typeof(Nullable<ListSortDirection>),
-                                        typeof(DataGridColumn),
-                                        new FrameworkPropertyMetadata(null, new PropertyChangedCallback(OnNotifySortPropertyChanged)));
+            DependencyProperty.Register(
+                "SortDirection",
+                typeof(Nullable<ListSortDirection>),
+                typeof(DataGridColumn),
+                new FrameworkPropertyMetadata(null, new PropertyChangedCallback(OnNotifySortPropertyChanged)));
 
         /// <summary>
         /// The property for current sort direction of the column
@@ -846,8 +1046,11 @@ namespace Microsoft.Windows.Controls
         #region Auto Generation
 
         private static readonly DependencyPropertyKey IsAutoGeneratedPropertyKey =
-            DependencyProperty.RegisterReadOnly("IsAutoGenerated", typeof(bool), typeof(DataGridColumn),
-                                                new FrameworkPropertyMetadata(false));
+            DependencyProperty.RegisterReadOnly(
+                "IsAutoGenerated", 
+                typeof(bool), 
+                typeof(DataGridColumn),
+                new FrameworkPropertyMetadata(false));
 
         /// <summary>
         /// The DependencyProperty for the IsAutoGenerated Property
@@ -870,42 +1073,37 @@ namespace Microsoft.Windows.Controls
         /// <returns></returns>
         internal static DataGridColumn CreateDefaultColumn(ItemPropertyInfo itemProperty)
         {
-            Debug.Assert(itemProperty != null && itemProperty.PropertyType != null, 
-                "itemProperty and/or its PropertyType member cannot be null");
+            Debug.Assert(itemProperty != null && itemProperty.PropertyType != null, "itemProperty and/or its PropertyType member cannot be null");
 
-            DataGridColumn dataGridColumn;
+            DataGridColumn dataGridColumn = null;
+            DataGridComboBoxColumn comboBoxColumn = null;
             Type propertyType = itemProperty.PropertyType;
-
-            //determine the type of column to be created and create one
+            
+            // determine the type of column to be created and create one
             if (propertyType.IsEnum)
             {
-                DataGridComboBoxColumn comboBoxColumn = new DataGridComboBoxColumn();
+                comboBoxColumn = new DataGridComboBoxColumn();
                 comboBoxColumn.ItemsSource = Enum.GetValues(propertyType);
                 dataGridColumn = comboBoxColumn;
             }
-            else if (typeof(String).IsAssignableFrom(propertyType))
+            else if (typeof(string).IsAssignableFrom(propertyType))
             {
                 dataGridColumn = new DataGridTextColumn();
             }
-            else if (typeof(Boolean).IsAssignableFrom(propertyType))
+            else if (typeof(bool).IsAssignableFrom(propertyType))
             {
                 dataGridColumn = new DataGridCheckBoxColumn();
             }
             else if (typeof(Uri).IsAssignableFrom(propertyType))
             {
                 dataGridColumn = new DataGridHyperlinkColumn();
-            }
-            /* TODO: DataGridDateColumn is yet to be implemented
-            else if (typeof(DateTime).IsAssignableFrom(propertyType))
-            {
-                dataGridColumn = new DataGridDateColumn();
-            }*/
+            }           
             else
             {
                 dataGridColumn = new DataGridTextColumn();
             }
 
-            //determine if the datagrid can sort on the column or not
+            // determine if the datagrid can sort on the column or not
             if (!typeof(IComparable).IsAssignableFrom(propertyType))
             {
                 dataGridColumn.CanUserSort = false;
@@ -913,13 +1111,20 @@ namespace Microsoft.Windows.Controls
 
             dataGridColumn.Header = itemProperty.Name;
 
-            //Set the data field binding for such created columns and 
-            //choose the BindingMode based on editability of the property.
+            // Set the data field binding for such created columns and 
+            // choose the BindingMode based on editability of the property.
             DataGridBoundColumn boundColumn = dataGridColumn as DataGridBoundColumn;
-            if (boundColumn != null)
+            if (boundColumn != null || comboBoxColumn != null)
             {
                 Binding binding = new Binding(itemProperty.Name);
-                boundColumn.DataFieldBinding = binding;
+                if (comboBoxColumn != null)
+                {
+                    comboBoxColumn.SelectedItemBinding = binding;
+                }
+                else
+                {
+                    boundColumn.Binding = binding;
+                }
 
                 PropertyDescriptor pd = itemProperty.Descriptor as PropertyDescriptor;
                 if (pd != null)
@@ -927,7 +1132,7 @@ namespace Microsoft.Windows.Controls
                     if (pd.IsReadOnly)
                     {
                         binding.Mode = BindingMode.OneWay;
-                        boundColumn.IsReadOnly = true;
+                        dataGridColumn.IsReadOnly = true;
                     }
                 }
                 else
@@ -938,7 +1143,7 @@ namespace Microsoft.Windows.Controls
                         if (!pi.CanWrite)
                         {
                             binding.Mode = BindingMode.OneWay;
-                            boundColumn.IsReadOnly = true;
+                            dataGridColumn.IsReadOnly = true;
                         }
                     }
                 }
@@ -955,8 +1160,11 @@ namespace Microsoft.Windows.Controls
         /// Dependency Property Key for IsFrozen property
         /// </summary>
         private static readonly DependencyPropertyKey IsFrozenPropertyKey =
-            DependencyProperty.RegisterReadOnly("IsFrozen", typeof(bool), typeof(DataGridColumn),
-                                                new FrameworkPropertyMetadata(false, new PropertyChangedCallback(OnNotifyFrozenPropertyChanged), new CoerceValueCallback(OnCoerceIsFrozen)));
+            DependencyProperty.RegisterReadOnly(
+                "IsFrozen", 
+                typeof(bool), 
+                typeof(DataGridColumn),
+                new FrameworkPropertyMetadata(false, new PropertyChangedCallback(OnNotifyFrozenPropertyChanged), new CoerceValueCallback(OnCoerceIsFrozen)));
 
         /// <summary>
         /// The DependencyProperty for the IsFrozen Property
@@ -1004,6 +1212,7 @@ namespace Microsoft.Windows.Controls
                     return false;
                 }
             }
+
             return baseValue;
         }
 
@@ -1044,9 +1253,12 @@ namespace Microsoft.Windows.Controls
         private static object OnCoerceDragIndicatorStyle(DependencyObject d, object baseValue)
         {
             var column = d as DataGridColumn;
-            return DataGridHelper.GetCoercedTransferPropertyValue(column, baseValue, DragIndicatorStyleProperty,
-                                                                  column.DataGridOwner, DataGrid.DragIndicatorStyleProperty,
-                                                                  null, null);
+            return DataGridHelper.GetCoercedTransferPropertyValue(
+                column, 
+                baseValue, 
+                DragIndicatorStyleProperty,
+                column.DataGridOwner, 
+                DataGrid.DragIndicatorStyleProperty);
         }
 
         #endregion
@@ -1062,6 +1274,7 @@ namespace Microsoft.Windows.Controls
             {
                 return _clipboardContentBinding;
             }
+
             set
             {
                 _clipboardContentBinding = value;
@@ -1079,14 +1292,15 @@ namespace Microsoft.Windows.Controls
         /// <returns></returns>
         public virtual object OnCopyingCellClipboardContent(object item)
         {
+            object cellValue = null;
             BindingBase binding = ClipboardContentBinding;
-            if (binding == null)
-                return null;
-
-            FrameworkElement fe = new FrameworkElement();
-            fe.DataContext = item;
-            fe.SetBinding(CellValueProperty, binding);
-            object cellValue = fe.GetValue(CellValueProperty);
+            if (binding != null)
+            {
+                FrameworkElement fe = new FrameworkElement();
+                fe.DataContext = item;
+                fe.SetBinding(CellValueProperty, binding);
+                cellValue = fe.GetValue(CellValueProperty);
+            }
 
             // Raise the event to give a chance for external listeners to modify the cell content
             if (CopyingCellClipboardContent != null)
@@ -1095,10 +1309,11 @@ namespace Microsoft.Windows.Controls
                 CopyingCellClipboardContent(this, args);
                 cellValue = args.Content;
             }
+
             return cellValue;
         }
 
-        // We don't provide default Paste but this public method is exposed to help custom implementation of Paste
+        /// We don't provide default Paste but this public method is exposed to help custom implementation of Paste
         /// <summary>
         /// This method stores the cellContent into the item object using ClipboardContentBinding.
         /// </summary>
@@ -1167,12 +1382,94 @@ namespace Microsoft.Windows.Controls
 
         #endregion
 
+        #region Column Resizing
+
+        /// <summary>
+        /// Dependency property for CanUserResize
+        /// </summary>
+        public static readonly DependencyProperty CanUserResizeProperty =
+            DependencyProperty.Register("CanUserResize", typeof(bool), typeof(DataGridColumn), new FrameworkPropertyMetadata(true, new PropertyChangedCallback(OnNotifyCanResizePropertyChanged)));
+
+        /// <summary>
+        /// Property which indicates if an end user can resize the column or not
+        /// </summary>
+        public bool CanUserResize
+        {
+            get { return (bool)GetValue(CanUserResizeProperty); }
+            set { SetValue(CanUserResizeProperty, value); }
+        }
+
+        /// <summary>
+        /// Property changed callback for CanUserResize property
+        /// </summary>
+        /// <param name="d"></param>
+        /// <param name="e"></param>
+        private static void OnNotifyCanResizePropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            ((DataGridColumn)d).NotifyPropertyChanged(d, e, NotificationTarget.ColumnHeaders);
+        }
+
+        #endregion
+
+        #region Hidden Columns
+
+        /// <summary>
+        ///     Dependency property for Visibility
+        /// </summary>
+        public static readonly DependencyProperty VisibilityProperty =    
+            DependencyProperty.Register(
+                "Visibility",
+                typeof(Visibility),
+                typeof(DataGridColumn),
+                new FrameworkPropertyMetadata(Visibility.Visible, new PropertyChangedCallback(OnVisibilityPropertyChanged)));
+
+        /// <summary>
+        ///     The property which determines if the column is visible or not.
+        /// </summary>
+        public Visibility Visibility
+        {
+            get { return (Visibility)GetValue(VisibilityProperty); }
+            set { SetValue(VisibilityProperty, value); }
+        }
+
+        /// <summary>
+        ///     Property changed callback for Visibility property
+        /// </summary>
+        private static void OnVisibilityPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs eventArgs)
+        {
+            Visibility oldVisibility = (Visibility)eventArgs.OldValue;
+            Visibility newVisibility = (Visibility)eventArgs.NewValue;
+
+            if (oldVisibility != Visibility.Visible && newVisibility != Visibility.Visible)
+            {
+                return;
+            }
+
+            ((DataGridColumn)d).NotifyPropertyChanged(
+                d, 
+                eventArgs, 
+                NotificationTarget.CellsPresenter | NotificationTarget.ColumnHeadersPresenter | NotificationTarget.ColumnCollection);
+        }
+
+        /// <summary>
+        ///     Helper IsVisible property
+        /// </summary>
+        internal bool IsVisible
+        {
+            get
+            {
+                return Visibility == Visibility.Visible;
+            }
+        }
+
+        #endregion
+
         #region Data
 
-        // This property is updated by DataGrid when the column is added to the DataGrid.Columns collection
-        private DataGrid _dataGridOwner = null;
-
-        private BindingBase _clipboardContentBinding; // Storage for ClipboardContentBinding
+        private DataGrid _dataGridOwner = null;                     // This property is updated by DataGrid when the column is added to the DataGrid.Columns collection
+        private BindingBase _clipboardContentBinding;               // Storage for ClipboardContentBinding
+        private bool _ignoreRedistributionOnWidthChange = false;    // Flag which indicates to ignore recomputation of column widths on width change of column
+        private bool _processingWidthChange = false;                // Flag which indicates that execution of width change callback to avoid recursions.
 
         #endregion
     }

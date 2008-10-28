@@ -54,22 +54,66 @@ namespace Microsoft.Windows.Controls
         ///     or <c>value</c> parameter is <c>double.PositiveInfinity</c>.
         /// </exception>
         public DataGridLength(double value, DataGridLengthUnitType type)
+            : this(value, type, (type == DataGridLengthUnitType.Pixel ? value : Double.NaN), (type == DataGridLengthUnitType.Pixel ? value : Double.NaN))
+        {
+        }
+
+        /// <summary>
+        ///     Initializes to a specified value and unit.
+        /// </summary>
+        /// <param name="value">The value to hold.</param>
+        /// <param name="type">The unit of <c>value</c>.</param>
+        /// <param name="desiredValue"></param>
+        /// <param name="displayValue"></param>
+        /// <remarks> 
+        ///     <c>value</c> is ignored unless <c>type</c> is
+        ///     <c>DataGridLengthUnitType.Pixel</c> or
+        ///     <c>DataGridLengthUnitType.Star</c>
+        /// </remarks>
+        /// <exception cref="ArgumentException">
+        ///     If <c>value</c> parameter is <c>double.NaN</c>
+        ///     or <c>value</c> parameter is <c>double.NegativeInfinity</c>
+        ///     or <c>value</c> parameter is <c>double.PositiveInfinity</c>.
+        /// </exception>
+        public DataGridLength(double value, DataGridLengthUnitType type, double desiredValue, double displayValue)
         {
             if (DoubleUtil.IsNaN(value) || Double.IsInfinity(value))
             {
-                throw new ArgumentException("value");
+                throw new ArgumentException(
+                    SR.Get(SRID.DataGridLength_Infinity),
+                    "value");
             }
-            if (   type != DataGridLengthUnitType.Auto
-                && type != DataGridLengthUnitType.Pixel
-                && type != DataGridLengthUnitType.Star
-                && type != DataGridLengthUnitType.SizeToCells
-                && type != DataGridLengthUnitType.SizeToHeader)
+
+            if (type != DataGridLengthUnitType.Auto &&
+                type != DataGridLengthUnitType.Pixel &&
+                type != DataGridLengthUnitType.Star &&
+                type != DataGridLengthUnitType.SizeToCells &&
+                type != DataGridLengthUnitType.SizeToHeader)
             {
-                throw new ArgumentException("type");
+                throw new ArgumentException(
+                    SR.Get(SRID.DataGridLength_InvalidType), 
+                    "type");
+            }
+
+            if (Double.IsInfinity(desiredValue))
+            {
+                throw new ArgumentException(
+                    SR.Get(SRID.DataGridLength_Infinity), 
+                    "desiredValue");
+            }
+
+            if (Double.IsInfinity(displayValue))
+            {
+                throw new ArgumentException(
+                    SR.Get(SRID.DataGridLength_Infinity),
+                    "displayValue");
             }
 
             _unitValue = (type == DataGridLengthUnitType.Auto) ? AutoValue : value;
             _unitType = type;
+
+            _desiredValue = desiredValue;
+            _displayValue = displayValue;
         }
 
         #endregion Constructors
@@ -83,10 +127,12 @@ namespace Microsoft.Windows.Controls
         /// <param name="gl2">second DataGridLength to compare.</param>
         /// <returns>true if specified DataGridLengths have same value 
         /// and unit type.</returns>
-        public static bool operator == (DataGridLength gl1, DataGridLength gl2)
+        public static bool operator ==(DataGridLength gl1, DataGridLength gl2)
         {
-            return (    gl1.UnitType == gl2.UnitType 
-                    &&  gl1.Value == gl2.Value  );
+            return gl1.UnitType == gl2.UnitType 
+                   && gl1.Value == gl2.Value 
+                   && gl1.DesiredValue == gl2.DesiredValue 
+                   && gl1.DisplayValue == gl2.DisplayValue;
         }
 
         /// <summary>
@@ -96,38 +142,42 @@ namespace Microsoft.Windows.Controls
         /// <param name="gl2">second DataGridLength to compare.</param>
         /// <returns>true if specified DataGridLengths have either different value or 
         /// unit type.</returns>
-        public static bool operator != (DataGridLength gl1, DataGridLength gl2)
+        public static bool operator !=(DataGridLength gl1, DataGridLength gl2)
         {
-            return (    gl1.UnitType != gl2.UnitType 
-                    ||  gl1.Value != gl2.Value  );
+            return gl1.UnitType != gl2.UnitType 
+                   || gl1.Value != gl2.Value 
+                   || gl1.DesiredValue != gl2.DesiredValue 
+                   || gl1.DisplayValue != gl2.DisplayValue;
         }
 
         /// <summary>
         /// Compares this instance of DataGridLength with another object.
         /// </summary>
-        /// <param name="oCompare">Reference to an object for comparison.</param>
+        /// <param name="obj">Reference to an object for comparison.</param>
         /// <returns><c>true</c>if this DataGridLength instance has the same value 
         /// and unit type as oCompare.</returns>
-        public override bool Equals(object oCompare)
+        public override bool Equals(object obj)
         {
-            if(oCompare is DataGridLength)
+            if (obj is DataGridLength)
             {
-                DataGridLength l = (DataGridLength)oCompare;
-                return (this == l);
+                DataGridLength l = (DataGridLength)obj;
+                return this == l;
             }
             else
+            {
                 return false;
+            }
         }
 
         /// <summary>
         /// Compares this instance of DataGridLength with another instance.
         /// </summary>
-        /// <param name="gridLength">Grid length instance to compare.</param>
+        /// <param name="other">Grid length instance to compare.</param>
         /// <returns><c>true</c>if this DataGridLength instance has the same value 
         /// and unit type as gridLength.</returns>
-        public bool Equals(DataGridLength gridLength)
+        public bool Equals(DataGridLength other)
         {
-            return (this == gridLength);
+            return this == other;
         }
 
         /// <summary>
@@ -136,26 +186,44 @@ namespace Microsoft.Windows.Controls
         /// <returns><see cref="Object.GetHashCode"/></returns>
         public override int GetHashCode()
         {
-            return ((int)_unitValue + (int)_unitType);
+            return (int)_unitValue + (int)_unitType + (int)_desiredValue + (int)_displayValue;
         }
 
         /// <summary>
         ///     Returns <c>true</c> if this DataGridLength instance holds 
         ///     an absolute (pixel) value.
         /// </summary>
-        public bool IsAbsolute { get { return (_unitType == DataGridLengthUnitType.Pixel); } }
+        public bool IsAbsolute 
+        { 
+            get 
+            { 
+                return _unitType == DataGridLengthUnitType.Pixel; 
+            } 
+        }
 
         /// <summary>
         ///     Returns <c>true</c> if this DataGridLength instance is 
         ///     automatic (not specified).
         /// </summary>
-        public bool IsAuto { get { return (_unitType == DataGridLengthUnitType.Auto); } }
+        public bool IsAuto 
+        { 
+            get 
+            { 
+                return _unitType == DataGridLengthUnitType.Auto; 
+            } 
+        }
 
         /// <summary>
         ///     Returns <c>true</c> if this DataGridLength instance holds a weighted proportion
         ///     of available space.
         /// </summary>
-        public bool IsStar { get { return (_unitType == DataGridLengthUnitType.Star); } }
+        public bool IsStar 
+        { 
+            get 
+            { 
+                return _unitType == DataGridLengthUnitType.Star; 
+            } 
+        }
 
         /// <summary>
         ///     Returns <c>true</c> if this instance is to size to the cells of a column or row.
@@ -176,12 +244,46 @@ namespace Microsoft.Windows.Controls
         /// <summary>
         ///     Returns value part of this DataGridLength instance.
         /// </summary>
-        public double Value { get { return ((_unitType == DataGridLengthUnitType.Auto) ? AutoValue : _unitValue); } }
+        public double Value 
+        { 
+            get 
+            { 
+                return (_unitType == DataGridLengthUnitType.Auto) ? AutoValue : _unitValue; 
+            } 
+        }
 
         /// <summary>
         ///     Returns unit type of this DataGridLength instance.
         /// </summary>
-        public DataGridLengthUnitType UnitType { get { return (_unitType); } }
+        public DataGridLengthUnitType UnitType 
+        { 
+            get 
+            { 
+                return _unitType; 
+            } 
+        }
+
+        /// <summary>
+        ///     Returns the desired value of this instance.
+        /// </summary>
+        public double DesiredValue 
+        { 
+            get 
+            { 
+                return _desiredValue; 
+            } 
+        }
+
+        /// <summary>
+        ///     Returns the display value of this instance.
+        /// </summary>
+        public double DisplayValue 
+        { 
+            get 
+            { 
+                return _displayValue; 
+            } 
+        }
 
         /// <summary>
         ///     Returns the string representation of this object.
@@ -227,23 +329,25 @@ namespace Microsoft.Windows.Controls
         ///     Allows for values of type double to be implicitly converted
         ///     to DataGridLength.
         /// </summary>
-        /// <param name="d">The number of pixels to represent.</param>
+        /// <param name="doubleValue">The number of pixels to represent.</param>
         /// <returns>The DataGridLength representing the requested number of pixels.</returns>
-        public static implicit operator DataGridLength(double d)
+        public static implicit operator DataGridLength(double value)
         {
-            return new DataGridLength(d);
+            return new DataGridLength(value);
         }
 
         #endregion
 
         #region Fields
 
-        private double _unitValue;      //  unit value storage
-        private DataGridLengthUnitType _unitType; //  unit type storage
+        private double _unitValue; // unit value storage
+        private DataGridLengthUnitType _unitType; // unit type storage
+        private double _desiredValue; // desired value storage
+        private double _displayValue; // display value storage
         
         private const double AutoValue = 1.0;
 
-        //  static instance of Auto DataGridLength
+        // static instance of Auto DataGridLength
         private static readonly DataGridLength _auto = new DataGridLength(AutoValue, DataGridLengthUnitType.Auto);
         private static readonly DataGridLength _sizeToCells = new DataGridLength(AutoValue, DataGridLengthUnitType.SizeToCells);
         private static readonly DataGridLength _sizeToHeader = new DataGridLength(AutoValue, DataGridLengthUnitType.SizeToHeader);

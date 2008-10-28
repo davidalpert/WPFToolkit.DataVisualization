@@ -29,6 +29,7 @@ namespace Microsoft.Windows.Controls
             {
                 return _handled;
             }
+
             set
             {
                 _handled = value;

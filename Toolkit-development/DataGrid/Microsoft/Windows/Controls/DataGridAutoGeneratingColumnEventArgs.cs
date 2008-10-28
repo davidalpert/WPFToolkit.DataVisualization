@@ -36,7 +36,8 @@ namespace Microsoft.Windows.Controls
         {
         }
 
-        internal DataGridAutoGeneratingColumnEventArgs(DataGridColumn column,
+        internal DataGridAutoGeneratingColumnEventArgs(
+            DataGridColumn column,
             string propertyName,
             Type propertyType,
             object propertyDescriptor)
@@ -60,6 +61,7 @@ namespace Microsoft.Windows.Controls
             {
                 return _column;
             }
+
             set
             {
                 _column = value;
@@ -97,6 +99,7 @@ namespace Microsoft.Windows.Controls
             {
                 return _propertyDescriptor;
             }
+
             private set
             {
                 if (value == null)
@@ -105,7 +108,8 @@ namespace Microsoft.Windows.Controls
                 }
                 else
                 {
-                    Debug.Assert(typeof(PropertyDescriptor).IsAssignableFrom(value.GetType()) ||
+                    Debug.Assert(
+                        typeof(PropertyDescriptor).IsAssignableFrom(value.GetType()) ||
                         typeof(PropertyInfo).IsAssignableFrom(value.GetType()),
                         "Property descriptor should be either a PropertyDescriptor or a PropertyInfo");
                     _propertyDescriptor = value;
@@ -122,6 +126,7 @@ namespace Microsoft.Windows.Controls
             {
                 return _cancel;
             }
+
             set
             {
                 _cancel = value;
@@ -136,7 +141,7 @@ namespace Microsoft.Windows.Controls
         private string _propertyName;
         private Type _propertyType;
         private object _propertyDescriptor;
-        private bool _cancel = false;
+        private bool _cancel;
 
         #endregion
     }

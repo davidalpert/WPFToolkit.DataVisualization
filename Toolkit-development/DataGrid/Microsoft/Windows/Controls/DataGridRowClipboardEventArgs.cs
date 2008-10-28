@@ -6,8 +6,8 @@
 
 using System;
 using System.Collections.Generic;
-using System.Text;
 using System.Collections.ObjectModel;
+using System.Text;
 
 namespace Microsoft.Windows.Controls
 {
@@ -56,6 +56,7 @@ namespace Microsoft.Windows.Controls
                 {
                     _clipboardRowContent = new List<DataGridClipboardCellContent>();
                 }
+
                 return _clipboardRowContent;
             }
         }
@@ -73,6 +74,7 @@ namespace Microsoft.Windows.Controls
             {
                 ClipboardHelper.FormatCell(ClipboardRowContent[i].Content, i == 0 /* firstCell */, i == count - 1 /* lastCell */, sb, format);
             }
+
             return sb.ToString();
         }
 

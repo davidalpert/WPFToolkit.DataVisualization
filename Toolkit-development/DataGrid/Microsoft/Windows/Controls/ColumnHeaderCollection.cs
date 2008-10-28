@@ -51,10 +51,12 @@ namespace Microsoft.Windows.Controls
             Debug.Assert(e.Property == DataGridColumn.HeaderProperty, "We only want to know about the header property changing");
             Debug.Assert(_columns.Contains(column));
 
-            NotifyCollectionChangedEventArgs args = new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Replace,
-                                                                                         e.NewValue,
-                                                                                         e.OldValue,
-                                                                                         _columns.IndexOf(column));
+            NotifyCollectionChangedEventArgs args = new NotifyCollectionChangedEventArgs(
+                NotifyCollectionChangedAction.Replace,
+                e.NewValue,
+                e.OldValue,
+                _columns.IndexOf(column));
+
             FireCollectionChanged(args);
         }
 
@@ -71,7 +73,6 @@ namespace Microsoft.Windows.Controls
         }
 
         #endregion 
-
 
         #region IEnumerable Members
 
@@ -91,7 +92,6 @@ namespace Microsoft.Windows.Controls
                 }
 
                 _current = -1;
-                _columnsChanged = false;
             }
 
             #region IEnumerator Members
@@ -183,7 +183,7 @@ namespace Microsoft.Windows.Controls
 
             #region Data
 
-            private int  _current;
+            private int _current;
             private bool _columnsChanged;
             private ObservableCollection<DataGridColumn> _columns;
 
@@ -192,14 +192,12 @@ namespace Microsoft.Windows.Controls
 
         #endregion
 
-
         #region INotifyCollectionChanged Members
 
         /// <summary>
         /// INotifyCollectionChanged CollectionChanged event
         /// </summary>
         public event NotifyCollectionChangedEventHandler CollectionChanged;
-
 
         /// <summary>
         ///     Helper to raise a CollectionChanged event when the columns collection has changed
@@ -243,9 +241,8 @@ namespace Microsoft.Windows.Controls
                 CollectionChanged(this, args);
             }
         }
-
         
-        private object[] HeadersFromColumns(IList columns)
+        private static object[] HeadersFromColumns(IList columns)
         {
             object[] headers = new object[columns.Count];
 

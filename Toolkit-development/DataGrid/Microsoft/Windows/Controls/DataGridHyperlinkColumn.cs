@@ -34,10 +34,9 @@ namespace Microsoft.Windows.Controls
         /// Dependecy property for TargetName Property
         /// </summary>
         public static readonly DependencyProperty TargetNameProperty =
-            DependencyProperty.Register("TargetName",
-                                        typeof(string),
-                                        typeof(DataGridHyperlinkColumn),
-                                        new FrameworkPropertyMetadata(null, new PropertyChangedCallback(DataGridColumn.NotifyPropertyChangeForRefreshContent)));
+            Hyperlink.TargetNameProperty.AddOwner(
+                typeof(DataGridHyperlinkColumn),
+                new FrameworkPropertyMetadata(null, new PropertyChangedCallback(DataGridColumn.NotifyPropertyChangeForRefreshContent)));
         
         /// <summary>
         /// The property which determines the target name of the hyperlink
@@ -53,7 +52,11 @@ namespace Microsoft.Windows.Controls
         /// </summary>
         public BindingBase ContentBinding
         {
-            get { return _contentBinding; }
+            get 
+            { 
+                return _contentBinding; 
+            }
+
             set
             {
                 if (_contentBinding != value)
@@ -79,7 +82,7 @@ namespace Microsoft.Windows.Controls
         }
 
         /// <summary>
-        /// Try applying ContentBinding. If it doesnt work out apply DataFieldBinding.
+        /// Try applying ContentBinding. If it doesnt work out apply Binding.
         /// </summary>
         /// <param name="target"></param>
         /// <param name="property"></param>
@@ -89,9 +92,9 @@ namespace Microsoft.Windows.Controls
             {
                 BindingOperations.SetBinding(target, property, ContentBinding);
             }
-            else if (DataFieldBinding != null)
+            else if (Binding != null)
             {
-                BindingOperations.SetBinding(target, property, DataFieldBinding);
+                BindingOperations.SetBinding(target, property, Binding);
             }
             else
             {
@@ -114,11 +117,11 @@ namespace Microsoft.Windows.Controls
             DataGridCell cell = element as DataGridCell;
             if (cell != null && !cell.IsEditing)
             {
-                if (string.Compare(propertyName, "ContentBinding") == 0)
+                if (string.Compare(propertyName, "ContentBinding", StringComparison.Ordinal) == 0)
                 {
                     cell.BuildVisualTree();
                 }
-                else if (string.Compare(propertyName, "TargetName") == 0)
+                else if (string.Compare(propertyName, "TargetName", StringComparison.Ordinal) == 0)
                 {
                     TextBlock outerBlock = cell.Content as TextBlock;
                     if (outerBlock != null && outerBlock.Inlines.Count > 0)
@@ -150,7 +153,6 @@ namespace Microsoft.Windows.Controls
             get { return DataGridTextColumn.DefaultElementStyle; }
         }
 
-
         /// <summary>
         ///     The default value of the EditingElementStyle property.
         ///     This value can be used as the BasedOn for new styles.
@@ -181,7 +183,7 @@ namespace Microsoft.Windows.Controls
             link.TargetName = TargetName;
 
             ApplyStyle(/* isEditing = */ false, /* defaultToElementStyle = */ false, outerBlock);
-            ApplyDataFieldBinding(link, Hyperlink.NavigateUriProperty);
+            ApplyBinding(link, Hyperlink.NavigateUriProperty);
             ApplyContentBinding(innerContentPresenter, ContentPresenter.ContentProperty);
 
             return outerBlock;
@@ -195,7 +197,7 @@ namespace Microsoft.Windows.Controls
             TextBox textBox = new TextBox();
 
             ApplyStyle(/* isEditing = */ true, /* defaultToElementStyle = */ false, textBox);
-            ApplyDataFieldBinding(textBox, TextBox.TextProperty);
+            ApplyBinding(textBox, TextBox.TextProperty);
 
             return textBox;
         }
@@ -208,9 +210,9 @@ namespace Microsoft.Windows.Controls
         ///     Called when a cell has just switched to edit mode.
         /// </summary>
         /// <param name="editingElement">A reference to element returned by GenerateEditingElement.</param>
-        /// <param name="e">The event args of the input event that caused the cell to go into edit mode. May be null.</param>
+        /// <param name="editingEventArgs">The event args of the input event that caused the cell to go into edit mode. May be null.</param>
         /// <returns>The unedited value of the cell.</returns>
-        protected override object PrepareCellForEdit(FrameworkElement editingElement, RoutedEventArgs e)
+        protected override object PrepareCellForEdit(FrameworkElement editingElement, RoutedEventArgs editingEventArgs)
         {
             TextBox textBox = editingElement as TextBox;
             if (textBox != null)
@@ -219,7 +221,7 @@ namespace Microsoft.Windows.Controls
 
                 string originalValue = textBox.Text;
 
-                TextCompositionEventArgs textArgs = e as TextCompositionEventArgs;
+                TextCompositionEventArgs textArgs = editingEventArgs as TextCompositionEventArgs;
                 if (textArgs != null)
                 {
                     // If text input started the edit, then replace the text with what was typed.
@@ -245,12 +247,30 @@ namespace Microsoft.Windows.Controls
         ///     Called when a cell's value is to be committed, just before it exits edit mode.
         /// </summary>
         /// <param name="editingElement">A reference to element returned by GenerateEditingElement.</param>
-        protected override void CommitCellEdit(FrameworkElement editingElement)
+        /// <returns>false if there is a validation error. true otherwise.</returns>
+        protected override bool CommitCellEdit(FrameworkElement editingElement)
         {
             TextBox textBox = editingElement as TextBox;
             if (textBox != null)
             {
-                UpdateSource(textBox, TextBox.TextProperty);
+                DataGridHelper.UpdateSource(textBox, TextBox.TextProperty);
+                return !Validation.GetHasError(textBox);
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        ///     Called when a cell's value is to be cancelled, just before it exits edit mode.
+        /// </summary>
+        /// <param name="editingElement">A reference to element returned by GenerateEditingElement.</param>
+        /// <returns>false if there is a validation error. true otherwise.</returns>
+        protected override void CancelCellEdit(FrameworkElement editingElement, object uneditedValue)
+        {
+            TextBox textBox = editingElement as TextBox;
+            if (textBox != null)
+            {
+                DataGridHelper.UpdateTarget(textBox, TextBox.TextProperty);
             }
         }
 
@@ -267,7 +287,7 @@ namespace Microsoft.Windows.Controls
 
         #region Data
 
-        BindingBase _contentBinding = null;
+        private BindingBase _contentBinding = null;
 
         #endregion
     }

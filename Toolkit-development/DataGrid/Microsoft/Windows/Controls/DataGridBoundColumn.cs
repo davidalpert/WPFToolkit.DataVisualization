@@ -21,94 +21,85 @@ namespace Microsoft.Windows.Controls
     /// </summary>
     public abstract class DataGridBoundColumn : DataGridColumn
     {
+        #region Constructors
+
+        static DataGridBoundColumn()
+        {
+            SortMemberPathProperty.OverrideMetadata(typeof(DataGridBoundColumn), new FrameworkPropertyMetadata(null, OnCoerceSortMemberPath));
+        }
+
+        #endregion
+
         #region Binding
+
+        private static object OnCoerceSortMemberPath(DependencyObject d, object baseValue)
+        {
+            var column = (DataGridBoundColumn)d;
+            var sortMemberPath = (string)baseValue;
+
+            if (string.IsNullOrEmpty(sortMemberPath))
+            {
+                sortMemberPath = DataGridHelper.GetPathFromBinding(column.Binding as Binding);
+            }
+
+            return sortMemberPath;
+        }
 
         /// <summary>
         ///     The binding that will be applied to the generated element.
         /// </summary>
-        public virtual BindingBase DataFieldBinding
+        /// <remarks>
+        ///     This isn't a DP because if it were getting the value would evaluate the binding.
+        /// </remarks>
+        public virtual BindingBase Binding
         {
-            get { return _dataFieldBinding; }
+            get
+            {
+                if (!_bindingEnsured)
+                {
+                    if (!IsReadOnly)
+                    {
+                        DataGridHelper.EnsureTwoWay(_binding);
+                    }
+
+                    _bindingEnsured = true;
+                }
+
+                return _binding;
+            }
+
             set
             {
-                if (_dataFieldBinding != value)
+                if (_binding != value)
                 {
-                    BindingBase oldBinding = _dataFieldBinding;
-                    _dataFieldBinding = value;
-                    EnsureTwoWay(_dataFieldBinding);
-                    OnDataFieldBindingChanged(oldBinding, _dataFieldBinding);
-                }
-            }
-        }
-
-        // TODO: Remove when binding groups are used (post Beta)
-        private static void TEMP_UpdateSourceWorkaround(Binding b)
-        {
-            b.UpdateSourceTrigger = UpdateSourceTrigger.Explicit;
-        }
-        private static void TEMP_UpdateSourceWorkaround(MultiBinding b)
-        {
-            b.UpdateSourceTrigger = UpdateSourceTrigger.Explicit;
-        }
-
-        private static void EnsureTwoWay(BindingBase bindingBase)
-        {
-            // If it is a standard Binding, then set the mode to TwoWay
-            Binding binding = bindingBase as Binding;
-            if (binding != null)
-            {
-                if (binding.Mode != BindingMode.TwoWay)
-                {
-                    binding.Mode = BindingMode.TwoWay;
-                    TEMP_UpdateSourceWorkaround(binding);
-                }
-                return;
-            }
-
-            // A multi-binding can be set to TwoWay as well
-            MultiBinding multiBinding = bindingBase as MultiBinding;
-            if (multiBinding != null)
-            {
-                if (multiBinding.Mode != BindingMode.TwoWay)
-                {
-                    multiBinding.Mode = BindingMode.TwoWay;
-                    TEMP_UpdateSourceWorkaround(multiBinding);
-                }
-                return;
-            }
-
-            // A priority binding is a list of bindings, each should be set to TwoWay
-            PriorityBinding priBinding = bindingBase as PriorityBinding;
-            if (priBinding != null)
-            {
-                Collection<BindingBase> subBindings = priBinding.Bindings;
-                int count = subBindings.Count;
-                for (int i = 0; i < count; i++)
-                {
-                    EnsureTwoWay(subBindings[i]);
+                    BindingBase oldBinding = _binding;
+                    _binding = value;
+                    CoerceValue(SortMemberPathProperty);
+                    _bindingEnsured = false;
+                    OnBindingChanged(oldBinding, _binding);
                 }
             }
         }
 
         /// <summary>
-        ///     Called when DataFieldBinding changes.
+        ///     Called when Binding changes.
         /// </summary>
         /// <remarks>
         ///     Default implementation notifies the DataGrid and its subtree about the change.
         /// </remarks>
         /// <param name="oldBinding">The old binding.</param>
         /// <param name="newBinding">The new binding.</param>
-        protected virtual void OnDataFieldBindingChanged(BindingBase oldBinding, BindingBase newBinding)
+        protected virtual void OnBindingChanged(BindingBase oldBinding, BindingBase newBinding)
         {
-            NotifyPropertyChanged("DataFieldBinding");
+            NotifyPropertyChanged("Binding");
         }
 
         /// <summary>
-        ///     Assigns the DataFieldBinding to the desired property on the target object.
+        ///     Assigns the Binding to the desired property on the target object.
         /// </summary>
-        internal void ApplyDataFieldBinding(DependencyObject target, DependencyProperty property)
+        internal void ApplyBinding(DependencyObject target, DependencyProperty property)
         {
-            BindingBase binding = DataFieldBinding;
+            BindingBase binding = Binding;
             if (binding != null)
             {
                 BindingOperations.SetBinding(target, property, binding);
@@ -137,10 +128,11 @@ namespace Microsoft.Windows.Controls
         ///     The DependencyProperty for the ElementStyle property.
         /// </summary>
         public static readonly DependencyProperty ElementStyleProperty =
-            DependencyProperty.Register("ElementStyle", 
-                                        typeof(Style), 
-                                        typeof(DataGridBoundColumn),
-                                        new FrameworkPropertyMetadata(null, new PropertyChangedCallback(DataGridColumn.NotifyPropertyChangeForRefreshContent)));
+            DependencyProperty.Register(
+                "ElementStyle", 
+                typeof(Style), 
+                typeof(DataGridBoundColumn),
+                new FrameworkPropertyMetadata(null, new PropertyChangedCallback(DataGridColumn.NotifyPropertyChangeForRefreshContent)));
 
         /// <summary>
         ///     A style that is applied to the generated element when editing.
@@ -156,27 +148,16 @@ namespace Microsoft.Windows.Controls
         ///     The DependencyProperty for the EditingElementStyle property.
         /// </summary>
         public static readonly DependencyProperty EditingElementStyleProperty =
-            DependencyProperty.Register("EditingElementStyle", 
-                                        typeof(Style), 
-                                        typeof(DataGridBoundColumn),
-                                        new FrameworkPropertyMetadata(null, new PropertyChangedCallback(DataGridColumn.NotifyPropertyChangeForRefreshContent)));
+            DependencyProperty.Register(
+                "EditingElementStyle", 
+                typeof(Style), 
+                typeof(DataGridBoundColumn),
+                new FrameworkPropertyMetadata(null, new PropertyChangedCallback(DataGridColumn.NotifyPropertyChangeForRefreshContent)));
 
         /// <summary>
         ///     Assigns the ElementStyle to the desired property on the given element.
         /// </summary>
         internal void ApplyStyle(bool isEditing, bool defaultToElementStyle, FrameworkElement element)
-        {
-            Style style = PickStyle(isEditing, defaultToElementStyle);
-            if (style != null)
-            {
-                element.Style = style;
-            }
-        }
-
-        /// <summary>
-        ///     Assigns the ElementStyle to the desired property on the given element.
-        /// </summary>
-        internal void ApplyStyle(bool isEditing, bool defaultToElementStyle, FrameworkContentElement element)
         {
             Style style = PickStyle(isEditing, defaultToElementStyle);
             if (style != null)
@@ -198,49 +179,18 @@ namespace Microsoft.Windows.Controls
 
         #endregion
 
-        #region Editing
-
-        internal void UpdateSource(FrameworkElement element, DependencyProperty dp)
-        {
-            BindingExpression binding = DataGridBoundColumn.GetBindingExpression(element, dp);
-            if (binding != null)
-            {
-                binding.UpdateSource();
-            }
-        }
-
-        internal void UpdateTarget(FrameworkElement element, DependencyProperty dp)
-        {
-            BindingExpression binding = DataGridBoundColumn.GetBindingExpression(element, dp);
-            if (binding != null)
-            {
-                binding.UpdateTarget();
-            }
-        }
-
-        private static BindingExpression GetBindingExpression(FrameworkElement element, DependencyProperty dp)
-        {
-            if (element != null)
-            {
-                return element.GetBindingExpression(dp);
-            }
-
-            return null;
-        }
-
-        #endregion
-
         #region Clipboard Copy/Paste
 
         /// <summary>
-        /// If base ClipboardContentBinding is not set we use DataFieldBinding.
+        /// If base ClipboardContentBinding is not set we use Binding.
         /// </summary>
         public override BindingBase ClipboardContentBinding
         {
             get
             {
-                return base.ClipboardContentBinding ?? DataFieldBinding;
+                return base.ClipboardContentBinding ?? Binding;
             }
+
             set
             {
                 base.ClipboardContentBinding = value;
@@ -252,7 +202,7 @@ namespace Microsoft.Windows.Controls
         #region Property Changed Handler
 
         /// <summary>
-        /// Override which rebuilds the cell's visual tree for DataFieldBinding change
+        /// Override which rebuilds the cell's visual tree for Binding change
         /// </summary>
         /// <param name="element"></param>
         /// <param name="propertyName"></param>
@@ -262,14 +212,15 @@ namespace Microsoft.Windows.Controls
             if (cell != null)
             {
                 bool isCellEditing = cell.IsEditing;
-                if ((string.Compare(propertyName, "DataFieldBinding") == 0) ||
-                    (string.Compare(propertyName, "ElementStyle") == 0 && !isCellEditing) ||
-                    (string.Compare(propertyName, "EditingElementStyle") == 0 && isCellEditing))
+                if ((string.Compare(propertyName, "Binding", StringComparison.Ordinal) == 0) ||
+                    (string.Compare(propertyName, "ElementStyle", StringComparison.Ordinal) == 0 && !isCellEditing) ||
+                    (string.Compare(propertyName, "EditingElementStyle", StringComparison.Ordinal) == 0 && isCellEditing))
                 {
                     cell.BuildVisualTree();
                     return;
                 }
             }
+
             base.RefreshCellContent(element, propertyName);
         }
 
@@ -277,9 +228,9 @@ namespace Microsoft.Windows.Controls
 
         #region Data
 
-        private BindingBase _dataFieldBinding;
+        private BindingBase _binding;
+        private bool _bindingEnsured;
 
         #endregion
-
     }
 }
