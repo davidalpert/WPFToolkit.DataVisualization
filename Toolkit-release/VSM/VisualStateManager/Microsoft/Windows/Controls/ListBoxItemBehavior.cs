@@ -31,11 +31,26 @@ namespace Microsoft.Windows.Controls
 
             ListBoxItem listBoxItem = (ListBoxItem)control;
             Type targetType = typeof(ListBoxItem);
-            EventHandler handler = delegate { UpdateState(listBoxItem, true); };
 
-            AddValueChanged(ListBoxItem.IsMouseOverProperty, targetType, listBoxItem, handler);
-            AddValueChanged(ListBoxItem.IsSelectedProperty, targetType, listBoxItem, handler);
+            AddValueChanged(ListBoxItem.IsMouseOverProperty, targetType, listBoxItem, UpdateStateHandler);
+            AddValueChanged(ListBoxItem.IsSelectedProperty, targetType, listBoxItem, UpdateStateHandler);
         }
+
+        /// <summary>
+        ///     Detaches to property changes and events.
+        /// </summary>
+        /// <param name="control">An instance of the control.</param>
+        protected override void OnDetach(Control control)
+        {
+            base.OnDetach(control);
+
+            ListBoxItem listBoxItem = (ListBoxItem)control;
+            Type targetType = typeof(ListBoxItem);
+
+            RemoveValueChanged(ListBoxItem.IsMouseOverProperty, targetType, listBoxItem, UpdateStateHandler);
+            RemoveValueChanged(ListBoxItem.IsSelectedProperty, targetType, listBoxItem, UpdateStateHandler);
+        }
+
 
         /// <summary>
         ///     Called to update the control's visual state.

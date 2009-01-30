@@ -31,8 +31,27 @@ namespace Microsoft.Windows.Controls
         /// <param name="control">An instance of the control.</param>
         protected override void OnAttach(Control control)
         {
-            control.Loaded += delegate(object sender, RoutedEventArgs e) { UpdateState(control, false); };
-            AddValueChanged(UIElement.IsKeyboardFocusWithinProperty, typeof(Control), control, delegate { UpdateState(control, true); });
+            control.Loaded += delegate(object sender, RoutedEventArgs e) { UpdateState(control, false);};
+            AddValueChanged(UIElement.IsKeyboardFocusWithinProperty, typeof(Control), control, UpdateStateHandler);
+        }
+
+        /// <summary>
+        /// Detaches property changes and events.
+        /// </summary>
+        /// <param name="control">The control</param>
+        protected override void OnDetach(Control control)
+        {
+            RemoveValueChanged(UIElement.IsKeyboardFocusWithinProperty, typeof(Control), control, UpdateStateHandler);
+        }
+
+        protected override void UpdateStateHandler(Object o, EventArgs e)
+        {
+            Control cont = o as Control;
+            if (cont == null)
+            {
+                throw new InvalidOperationException("This should never be used on anything other than a control.");
+            }
+            UpdateState(cont, true);
         }
 
         /// <summary>

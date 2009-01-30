@@ -32,10 +32,24 @@ namespace Microsoft.Windows.Controls
 
             ProgressBar progressBar = (ProgressBar)control;
             Type targetType = typeof(ProgressBar);
-            EventHandler handler = delegate { UpdateState(progressBar, true); };
 
-            AddValueChanged(ProgressBar.IsIndeterminateProperty, targetType, progressBar, handler);
+            AddValueChanged(ProgressBar.IsIndeterminateProperty, targetType, progressBar, UpdateStateHandler);
         }
+
+        /// <summary>
+        /// Detaches property changes and events.
+        /// </summary>
+        /// <param name="control">The control</param>
+        protected override void OnDetach(Control control)
+        {
+            base.OnDetach(control);
+
+            ProgressBar progressBar = (ProgressBar)control;
+            Type targetType = typeof(ProgressBar);
+
+            RemoveValueChanged(ProgressBar.IsIndeterminateProperty, targetType, progressBar, UpdateStateHandler);
+        }
+
 
         /// <summary>
         ///     Called to update the control's visual state.

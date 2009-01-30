@@ -32,9 +32,22 @@ namespace Microsoft.Windows.Controls
 
             ToggleButton toggle = (ToggleButton)control;
             Type targetType = typeof(ToggleButton);
-            EventHandler handler = delegate { UpdateState(toggle, true); };
 
-            AddValueChanged(ToggleButton.IsCheckedProperty, targetType, toggle, handler);
+            AddValueChanged(ToggleButton.IsCheckedProperty, targetType, toggle, UpdateStateHandler);
+        }
+
+        /// <summary>
+        /// Detaches property changes and events.
+        /// </summary>
+        /// <param name="control">The control</param>
+        protected override void OnDetach(Control control)
+        {
+            base.OnDetach(control);
+
+            ToggleButton toggle = (ToggleButton)control;
+            Type targetType = typeof(ToggleButton);
+
+            RemoveValueChanged(ToggleButton.IsCheckedProperty, targetType, toggle, UpdateStateHandler);
         }
 
         /// <summary>
