@@ -9,6 +9,7 @@ namespace VSMTest
 {
     public partial class VSMTestWindow
     {
+        static int click_count = 0;
         static VSMTestWindow()
         {
             // Shows how to use RegisterBehavior instead of setting VisualStateBehavior
@@ -47,6 +48,21 @@ namespace VSMTest
             WeatherGadget.Condition = WeatherCondition.Sunny;
             WeatherGadget.Temperature = "80";
             WeatherGadget.ConditionDescription = "Sunny with blue skies";
+        }
+
+        private void Button_Click(object sender, RoutedEventArgs e)
+        {
+            leakpanel.Children.Clear();
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            Button b = new Button();
+            b.Width = 200;
+            b.Height = 25;
+            b.Content = "Hello World " +click_count;
+            click_count += 1;
+            leakpanel.Children.Add(b);
+
+
         }
     }
 }

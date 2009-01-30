@@ -66,6 +66,29 @@ namespace Microsoft.Windows.Controls
             }
 
             OnAttach(control);
+            control.Unloaded += DetachHandler;
+            control.Loaded -= AttachHandler;
+        }
+
+                /// <summary>
+        ///     Checks that a VisualStateBehavior isn't already attached. If not,
+        ///     then attaches to the Control using OnAttach.
+        /// </summary>
+        private void Detach(Control control)
+        {
+            if (!GetIsVisualStateBehaviorAttached(control))
+            {
+                // TODO: Globalize this message.
+                throw new InvalidOperationException("VisualStateBehavior is not attached.");
+            }
+            else
+            {
+                SetIsVisualStateBehaviorAttached(control, false);
+            }
+
+            OnDetach(control);
+            control.Loaded += AttachHandler;
+            control.Unloaded -= DetachHandler;
         }
 
         /// <summary>
@@ -124,6 +147,49 @@ namespace Microsoft.Windows.Controls
         protected abstract void OnAttach(Control control);
 
         /// <summary>
+        ///     Detach to the appropriate events on the instance of the
+        ///     control in order to not leak memory.
+        /// </summary>
+        /// <param name="control">An instance of the control.</param>
+        protected abstract void OnDetach(Control control);
+
+        protected abstract void UpdateStateHandler(Object o, EventArgs e);
+
+
+        /// <summary>
+        /// This handler will be fired from the Unloaded event and causes the control to detach behaviors.
+        /// </summary>
+        /// <param name="sender">Control</param>
+        /// <param name="e">Unused</param>
+        private void  DetachHandler(object sender, RoutedEventArgs e)
+        {
+            Control cont = sender as Control;
+            if (cont == null)
+            {
+                throw new InvalidOperationException("This Handler should only be on a control.");
+            }
+
+            Detach(cont);
+
+        }
+
+        /// <summary>
+        /// This handler will be fired from the Loaded event and causes the control to re-attach behaviors.
+        /// </summary>
+        /// <param name="sender">Control</param>
+        /// <param name="e">Unused</param>
+        private void  AttachHandler(object sender, RoutedEventArgs e)
+        {
+            Control cont = sender as Control;
+            if (cont == null)
+            {
+                throw new InvalidOperationException("This Handler should only be on a control.");
+            }
+
+            Attach(cont);
+        }
+
+        /// <summary>
         ///     Called to update the control's visual state.
         /// </summary>
         /// <param name="control">The instance of the control being updated.</param>
@@ -168,6 +234,38 @@ namespace Microsoft.Windows.Controls
             if (propertyDescriptor != null)
             {
                 propertyDescriptor.AddValueChanged(instance, handler);
+                return true;
+            }
+
+            return false;
+        }
+
+        protected static bool RemoveValueChanged(DependencyProperty dp, Type targetType, object instance, EventHandler handler)
+        {
+            if (dp == null)
+            {
+                throw new ArgumentNullException("dp");
+            }
+
+            if (targetType == null)
+            {
+                throw new ArgumentNullException("targetType");
+            }
+
+            if (instance == null)
+            {
+                throw new ArgumentNullException("instance");
+            }
+
+            if (handler == null)
+            {
+                throw new ArgumentNullException("handler");
+            }
+
+            var propertyDescriptor = DependencyPropertyDescriptor.FromProperty(dp, targetType);
+            if (propertyDescriptor != null)
+            {
+                propertyDescriptor.RemoveValueChanged(instance, handler);
                 return true;
             }
 

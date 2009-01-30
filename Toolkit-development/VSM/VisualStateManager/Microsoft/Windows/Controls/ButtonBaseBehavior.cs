@@ -32,12 +32,28 @@ namespace Microsoft.Windows.Controls
 
             ButtonBase button = (ButtonBase)control;
             Type targetType = typeof(ButtonBase);
-            EventHandler handler = delegate { UpdateState(button, true); };
 
-            AddValueChanged(ButtonBase.IsMouseOverProperty, targetType, button, handler);
-            AddValueChanged(ButtonBase.IsEnabledProperty, targetType, button, handler);
-            AddValueChanged(ButtonBase.IsPressedProperty, targetType, button, handler);
+            AddValueChanged(ButtonBase.IsMouseOverProperty, targetType, button, UpdateStateHandler);
+            AddValueChanged(ButtonBase.IsEnabledProperty, targetType, button, UpdateStateHandler);
+            AddValueChanged(ButtonBase.IsPressedProperty, targetType, button, UpdateStateHandler);
         }
+
+        /// <summary>
+        /// Detaches property changes and events.
+        /// </summary>
+        /// <param name="control">The control</param>
+        protected override void OnDetach(Control control)
+        {
+            base.OnDetach(control);
+
+            ButtonBase button = (ButtonBase)control;
+            Type targetType = typeof(ButtonBase);
+
+            RemoveValueChanged(ButtonBase.IsMouseOverProperty, targetType, button, UpdateStateHandler);
+            RemoveValueChanged(ButtonBase.IsEnabledProperty, targetType, button, UpdateStateHandler);
+            RemoveValueChanged(ButtonBase.IsPressedProperty, targetType, button, UpdateStateHandler);
+        }
+
 
         /// <summary>
         ///     Called to update the control's visual state.

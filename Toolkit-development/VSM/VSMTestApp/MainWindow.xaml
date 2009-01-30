@@ -23,8 +23,10 @@
       <Button Width="120" HorizontalAlignment="Left" Click="PartyCloudyButton_Click" Content="Partly Cloudy" Margin="2"/>
       <Button Width="120" HorizontalAlignment="Left" Click="CloudyButton_Click" Content="Cloudy" Margin="2"/>
       <Button Width="120" HorizontalAlignment="Left" Click="RainyButton_Click" Content="Rainy" Margin="2"/>
-      
-      <CheckBox Content="IsIndeterminate" x:Name="isindeterminate"/>
+      <Button Width="120" HorizontalAlignment="Left" Click="Button_Click" Content="DoLeak" Margin="2"/>
+
+
+            <CheckBox Content="IsIndeterminate" x:Name="isindeterminate"/>
       <RadioButton GroupName="TestRadio" Content="{Binding Path=IsChecked,RelativeSource={RelativeSource Self}}" />
       <RadioButton GroupName="TestRadio" Content="{Binding Path=IsChecked,RelativeSource={RelativeSource Self}}" />
       
@@ -63,7 +65,21 @@
         Sunny to Cloudy,<LineBreak/>
         PartlyCloudy to Cloudy
       </TextBlock>
-    </StackPanel>
+            <TabControl>
+                <TabItem Header="Cheese">
+                    <StackPanel x:Name="leakpanel"></StackPanel>
+                </TabItem>
+                <TabItem Header="Crackers">
+                    <StackPanel Orientation="Vertical">
+                    <Button Width="120" HorizontalAlignment="Left" Content="Sunny" Margin="2"/>
+                    <Button Width="120" HorizontalAlignment="Left" Content="Partly Cloudy" Margin="2"/>
+                    <Button Width="120" HorizontalAlignment="Left" Content="Cloudy" Margin="2"/>
+                    <Button Width="120" HorizontalAlignment="Left" Content="Rainy" Margin="2"/>
+                    <Button Width="120" HorizontalAlignment="Left" Content="DoLeak" Margin="2"/>
+                        </StackPanel>
+                </TabItem>
+            </TabControl>
+</StackPanel>
 
     <controls:WeatherControl
             x:Name="WeatherGadget"

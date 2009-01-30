@@ -34,10 +34,28 @@ namespace Microsoft.Windows.Controls
             Type targetType = typeof(TextBoxBase);
             EventHandler handler = delegate { UpdateState(textBoxBase, true); };
 
-            AddValueChanged(TextBoxBase.IsMouseOverProperty, targetType, textBoxBase, handler);
-            AddValueChanged(TextBoxBase.IsEnabledProperty, targetType, textBoxBase, handler);
-            AddValueChanged(TextBoxBase.IsReadOnlyProperty, targetType, textBoxBase, handler);
+            AddValueChanged(TextBoxBase.IsMouseOverProperty, targetType, textBoxBase, UpdateStateHandler);
+            AddValueChanged(TextBoxBase.IsEnabledProperty, targetType, textBoxBase, UpdateStateHandler);
+            AddValueChanged(TextBoxBase.IsReadOnlyProperty, targetType, textBoxBase, UpdateStateHandler);
         }
+
+        /// <summary>
+        /// Detaches property changes and events.
+        /// </summary>
+        /// <param name="control">The control</param>
+        protected override void OnDetach(Control control)
+        {
+            base.OnDetach(control);
+
+            TextBoxBase textBoxBase = (TextBoxBase)control;
+            Type targetType = typeof(TextBoxBase);
+            EventHandler handler = delegate { UpdateState(textBoxBase, true); };
+
+            RemoveValueChanged(TextBoxBase.IsMouseOverProperty, targetType, textBoxBase, UpdateStateHandler);
+            RemoveValueChanged(TextBoxBase.IsEnabledProperty, targetType, textBoxBase, UpdateStateHandler);
+            RemoveValueChanged(TextBoxBase.IsReadOnlyProperty, targetType, textBoxBase, UpdateStateHandler);
+        }
+
 
         /// <summary>
         ///     Called to update the control's visual state.
