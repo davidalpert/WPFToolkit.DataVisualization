@@ -144,6 +144,18 @@ namespace Microsoft.Windows.Controls.Primitives
             return new CalendarButtonAutomationPeer(this);
         }
 
+        protected override void OnGotKeyboardFocus(System.Windows.Input.KeyboardFocusChangedEventArgs e)
+        {
+            ChangeVisualState(true);
+            base.OnGotKeyboardFocus(e);
+        }
+
+        protected override void OnLostKeyboardFocus(System.Windows.Input.KeyboardFocusChangedEventArgs e)
+        {
+            ChangeVisualState(true);
+            base.OnLostKeyboardFocus(e);
+        }
+
         #endregion Protected Methods
 
         #region Internal Methods
@@ -193,6 +205,16 @@ namespace Microsoft.Windows.Controls.Primitives
             else
             {
                 VisualStates.GoToState(this, useTransitions, VisualStates.StateActive, VisualStates.StateInactive);
+            }
+
+            // Update the FocusStates group
+            if (IsKeyboardFocused)
+            {
+                VisualStates.GoToState(this, useTransitions, VisualStates.StateCalendarButtonFocused, VisualStates.StateCalendarButtonUnfocused);
+            }
+            else
+            {
+                VisualStateManager.GoToState(this, VisualStates.StateCalendarButtonUnfocused, useTransitions);
             }
         }
 

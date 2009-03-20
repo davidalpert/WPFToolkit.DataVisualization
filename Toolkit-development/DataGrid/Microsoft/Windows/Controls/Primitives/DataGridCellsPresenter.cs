@@ -13,6 +13,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
+using MS.Internal;
 
 namespace Microsoft.Windows.Controls.Primitives
 {
@@ -95,7 +96,10 @@ namespace Microsoft.Windows.Controls.Primitives
         internal void SyncProperties(bool forcePrepareCells)
         {
             var dataGridOwner = DataGridOwner;
-            Debug.Assert(dataGridOwner != null, "We shouldn't be syncing properties if we don't have a valid DataGrid owner");
+            if (dataGridOwner == null)
+            {
+                return;
+            }
 
             DataGridHelper.TransferProperty(this, HeightProperty);
             DataGridHelper.TransferProperty(this, MinHeightProperty);
@@ -129,12 +133,39 @@ namespace Microsoft.Windows.Controls.Primitives
                 }
 
                 DataGridRow row = DataGridRowOwner;
+                bool arrangeInvalidated = false;
+
+                // Prepare the cells until dirtyCount is reached. Also invalidate the cells panel's measure
+                // and arrange if there is a mismatch between cell.ActualWidth and Column.Width.DisplayValue
                 for (int i = 0; i < dirtyCount; i++)
                 {
                     cell = (DataGridCell)ItemContainerGenerator.ContainerFromIndex(i);
                     if (cell != null)
                     {
                         cell.PrepareCell(row.Item, this, row);
+                        if (!arrangeInvalidated && !DoubleUtil.AreClose(cell.ActualWidth, columns[i].Width.DisplayValue))
+                        {
+                            InvalidateDataGridCellsPanelMeasureAndArrange();
+                            arrangeInvalidated = true;
+                        }
+                    }
+                }
+
+                // Keep searching for the mismatch between cell.ActualWidth
+                // and Column.Width.DisplayValue
+                if (!arrangeInvalidated)
+                {
+                    for (int i = dirtyCount; i < newColumnCount; i++)
+                    {
+                        cell = (DataGridCell)ItemContainerGenerator.ContainerFromIndex(i);
+                        if (cell != null)
+                        {
+                            if (!DoubleUtil.AreClose(cell.ActualWidth, columns[i].Width.DisplayValue))
+                            {
+                                InvalidateDataGridCellsPanelMeasureAndArrange();
+                                break;
+                            }
+                        }
                     }
                 }
             }
@@ -397,10 +428,16 @@ namespace Microsoft.Windows.Controls.Primitives
             // Remove space from the constraint (since it implicitly includes the GridLine's thickness), 
             // call the base implementation, and add the thickness back for the returned size.
             var row = DataGridRowOwner;
-            Debug.Assert(row != null, "Cell should have a DataGridRowOwner when measure is called.");
+            if (row == null)
+            {
+                return base.MeasureOverride(availableSize);
+            }
 
             var dataGrid = row.DataGridOwner;
-            Debug.Assert(dataGrid != null, "Cell should have a DataGridOwner when measure is called.");
+            if (dataGrid == null)
+            {
+                return base.MeasureOverride(availableSize);
+            }
 
             if (DataGridHelper.IsGridLineVisible(dataGrid, /*isHorizontal = */ true))
             {
@@ -424,10 +461,16 @@ namespace Microsoft.Windows.Controls.Primitives
             // We don't need to adjust the Arrange position of the content.  By default it is arranged at 0,0 and we're
             // adding a line to the bottom.  All we have to do is compress and extend the size, just like Measure.
             var row = DataGridRowOwner;
-            Debug.Assert(row != null, "Cell should have a DataGridRowOwner when arrange is called.");
+            if (row == null)
+            {
+                return base.ArrangeOverride(finalSize);
+            }
 
             var dataGrid = row.DataGridOwner;
-            Debug.Assert(dataGrid != null, "Cell should have a DataGridOwner when arrange is called.");
+            if (dataGrid == null)
+            {
+                return base.ArrangeOverride(finalSize);
+            }
 
             if (DataGridHelper.IsGridLineVisible(dataGrid, /*isHorizontal = */ true))
             {
@@ -451,10 +494,16 @@ namespace Microsoft.Windows.Controls.Primitives
             base.OnRender(drawingContext);
 
             var row = DataGridRowOwner;
-            Debug.Assert(row != null, "Cell should have a DataGridRowOwner when OnRender is called.");
+            if (row == null)
+            {
+                return;
+            }
 
             var dataGrid = row.DataGridOwner;
-            Debug.Assert(dataGrid != null, "Cell should have a DataGridOwner when OnRender is called.");
+            if (dataGrid == null)
+            {
+                return;
+            }
 
             if (DataGridHelper.IsGridLineVisible(dataGrid, /*isHorizontal = */ true))
             {

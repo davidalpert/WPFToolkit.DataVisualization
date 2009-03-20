@@ -1858,6 +1858,8 @@ namespace Microsoft.Windows.Controls
         ///     Method which tries to give away the given amount of width 
         ///     among all the columns except the ignored column
         /// </summary>
+        /// <param name="ignoredColumn">The column which is giving away the width</param>
+        /// <param name="giveAwayWidth">The amount of giveaway width</param>
         private double GiveAwayWidthToColumns(DataGridColumn ignoredColumn, double giveAwayWidth)
         {
             return GiveAwayWidthToColumns(ignoredColumn, giveAwayWidth, false);
@@ -1867,10 +1869,12 @@ namespace Microsoft.Windows.Controls
         ///     Method which tries to give away the given amount of width 
         ///     among all the columns except the ignored column
         /// </summary>
+        /// <param name="ignoredColumn">The column which is giving away the width</param>
+        /// <param name="giveAwayWidth">The amount of giveaway width</param>
         private double GiveAwayWidthToColumns(DataGridColumn ignoredColumn, double giveAwayWidth, bool recomputeStars)
         {
             double originalGiveAwayWidth = giveAwayWidth;
-            giveAwayWidth = GiveAwayWidthToScrollViewerExcess(giveAwayWidth);
+            giveAwayWidth = GiveAwayWidthToScrollViewerExcess(giveAwayWidth, /*includedInColumnsWidth*/ ignoredColumn != null);
             giveAwayWidth = GiveAwayWidthToNonStarColumns(ignoredColumn, giveAwayWidth);
 
             if (DoubleUtil.GreaterThan(giveAwayWidth, 0.0) || recomputeStars)
@@ -2016,7 +2020,7 @@ namespace Microsoft.Windows.Controls
         ///     Helper method which gives away width to scroll viewer
         ///     if its extent width is greater than viewport width
         /// </summary>
-        private double GiveAwayWidthToScrollViewerExcess(double giveAwayWidth)
+        private double GiveAwayWidthToScrollViewerExcess(double giveAwayWidth, bool includedInColumnsWidth)
         {
             double totalSpace = DataGridOwner.GetViewportWidthForColumns();
             double usedSpace = 0.0;
@@ -2028,10 +2032,19 @@ namespace Microsoft.Windows.Controls
                 }
             }
 
-            if (DoubleUtil.GreaterThan(usedSpace, totalSpace))
+            if (includedInColumnsWidth)
             {
-                double contributingSpace = usedSpace - totalSpace;
-                giveAwayWidth -= Math.Min(contributingSpace, giveAwayWidth);
+                if (DoubleUtil.GreaterThan(usedSpace, totalSpace))
+                {
+                    double contributingSpace = usedSpace - totalSpace;
+                    giveAwayWidth -= Math.Min(contributingSpace, giveAwayWidth);
+                }
+            }
+            else
+            {
+                // If the giveAwayWidth is not included in columns, then the new
+                // giveAwayWidth should be derived the total available space and used space
+                giveAwayWidth = Math.Min(giveAwayWidth, Math.Max(0d, totalSpace - usedSpace));
             }
 
             return giveAwayWidth;

@@ -60,6 +60,11 @@ namespace Microsoft.Windows.Controls
                get { return new SRID("DataGrid_DeleteCommandText"); } 
            }
 
+           public static SRID DataGridCellItemAutomationPeer_NameCoreFormat
+           {
+               get { return new SRID("DataGridCellItemAutomationPeer_NameCoreFormat"); }
+           }
+
            public static SRID CalendarAutomationPeer_CalendarButtonLocalizedControlType 
            { 
                get { return new SRID("CalendarAutomationPeer_CalendarButtonLocalizedControlType"); } 

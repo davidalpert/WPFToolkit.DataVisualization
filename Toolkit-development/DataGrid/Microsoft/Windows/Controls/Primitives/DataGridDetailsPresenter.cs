@@ -98,18 +98,38 @@ namespace Microsoft.Windows.Controls.Primitives
             }
         }
 
+        /// <summary>
+        ///     Helper method to determine if the given object
+        ///     is in the visual sub tree of the Details Presenter.
+        /// </summary>
+        private bool IsInVisualSubTree(DependencyObject visual)
+        {
+            while (visual != null)
+            {
+                if (visual == this)
+                {
+                    return true;
+                }
+                visual = VisualTreeHelper.GetParent(visual);
+            }
+            return false;
+        }
+
         protected override void OnPreviewMouseLeftButtonDown(System.Windows.Input.MouseButtonEventArgs e)
         {
             base.OnPreviewMouseLeftButtonDown(e);
+
+            // Ignore actions if the button down arises from a different visual tree
+            if (!IsInVisualSubTree(e.OriginalSource as DependencyObject))
+            {
+                return;
+            }
 
             DataGridRow rowOwner = DataGridRowOwner;
             DataGrid dataGridOwner = rowOwner != null ? rowOwner.DataGridOwner : null;
             if ((dataGridOwner != null) && (rowOwner != null))
             {
-                DataGridCellInfo previousCell = dataGridOwner.CurrentCell;
-                dataGridOwner.HandleSelectionForRowHeaderAndDetailsInput(rowOwner, /* startDragging = */ true);
-
-                // HandleSelectionForRowHeaderAndDetailsInput above sets the CurrentCell
+                // HandleSelectionForRowHeaderAndDetailsInput below sets the CurrentCell
                 // of datagrid to the cell with displayindex 0 in the row.
                 // This implicitly queues a request to MakeVisible command
                 // of ScrollViewer. The command handler calls MakeVisible method of 
@@ -121,11 +141,12 @@ namespace Microsoft.Windows.Controls.Primitives
                 // The workaround is to bring the concerned cell into the view by calling
                 // ScrollIntoView so that by the time MakeVisible handler of ScrollViewer is 
                 // executed the cell is already visible and the handler succeeds.
-                DataGridCellInfo currentCell = dataGridOwner.CurrentCell;
-                if (currentCell != previousCell && currentCell != DataGridCellInfo.Unset)
+                if (dataGridOwner.CurrentCell.Item != rowOwner.Item)
                 {
-                    dataGridOwner.ScrollIntoView(currentCell.Item, currentCell.Column);
+                    dataGridOwner.ScrollIntoView(rowOwner.Item, dataGridOwner.ColumnFromDisplayIndex(0));
                 }
+
+                dataGridOwner.HandleSelectionForRowHeaderAndDetailsInput(rowOwner, /* startDragging = */ true);
             }
         }
 

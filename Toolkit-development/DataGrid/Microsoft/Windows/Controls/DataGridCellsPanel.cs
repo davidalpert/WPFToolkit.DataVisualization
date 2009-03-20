@@ -220,6 +220,11 @@ namespace Microsoft.Windows.Controls
             Size measureSize = new Size();
 
             DataGrid parentDataGrid = ParentDataGrid;
+            if (parentDataGrid == null)
+            {
+                return measureSize;
+            }
+   
             double horizontalOffset = parentDataGrid.HorizontalScrollOffset;
             double cellsPanelOffset = parentDataGrid.CellsPanelHorizontalOffset;    // indicates cellspanel's offset in a row
             double nextFrozenCellStart = horizontalOffset;                // indicates the start position for next frozen cell
@@ -1316,11 +1321,11 @@ namespace Microsoft.Windows.Controls
                 InitializeArrangeState(arrangeState);
             }
 
-            double averageColumnWidth = parentDataGrid.InternalColumns.AverageColumnWidth;
-
             List<RealizedColumnsBlock> displayIndexBlockList = RealizedColumnsDisplayIndexBlockList;
             if (displayIndexBlockList != null && displayIndexBlockList.Count > 0)
             {
+                double averageColumnWidth = parentDataGrid.InternalColumns.AverageColumnWidth;
+
                 List<RealizedColumnsBlock> blockList = RealizedColumnsBlockList;
                 Debug_VerifyRealizedIndexCountVsDisplayIndexCount(blockList, displayIndexBlockList);
 

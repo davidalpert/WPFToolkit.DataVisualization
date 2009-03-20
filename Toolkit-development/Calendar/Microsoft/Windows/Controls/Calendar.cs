@@ -198,7 +198,7 @@ namespace Microsoft.Windows.Controls
             "DisplayDate",
             typeof(DateTime),
             typeof(Calendar),
-            new PropertyMetadata(DateTime.MinValue, OnDisplayDateChanged, CoerceDisplayDate));
+            new FrameworkPropertyMetadata(DateTime.MinValue, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, OnDisplayDateChanged, CoerceDisplayDate));
 
         /// <summary>
         /// DisplayDateProperty property changed handler.
@@ -209,7 +209,7 @@ namespace Microsoft.Windows.Controls
         {
             Calendar c = d as Calendar;
             Debug.Assert(c != null);
-            
+
             c.DisplayDateInternal = DateTimeHelper.DiscardDayTime((DateTime)e.NewValue);
             c.UpdateCellItems();
             c.OnDisplayDateChanged(new CalendarDateChangedEventArgs((DateTime)e.OldValue, (DateTime)e.NewValue));
@@ -254,7 +254,7 @@ namespace Microsoft.Windows.Controls
             "DisplayDateEnd",
             typeof(DateTime?),
             typeof(Calendar),
-            new FrameworkPropertyMetadata(null, OnDisplayDateEndChanged, CoerceDisplayDateEnd));
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, OnDisplayDateEndChanged, CoerceDisplayDateEnd));
 
         /// <summary>
         /// DisplayDateEndProperty property changed handler.
@@ -315,7 +315,7 @@ namespace Microsoft.Windows.Controls
             "DisplayDateStart",
             typeof(DateTime?),
             typeof(Calendar),
-            new FrameworkPropertyMetadata(null, OnDisplayDateStartChanged, CoerceDisplayDateStart));
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, OnDisplayDateStartChanged, CoerceDisplayDateStart));
 
         /// <summary>
         /// DisplayDateStartProperty property changed handler.
@@ -338,7 +338,7 @@ namespace Microsoft.Windows.Controls
 
             DateTime? date = (DateTime?)value;
 
-            if (date.HasValue) 
+            if (date.HasValue)
             {
                 DateTime? minSelectedDate = c.SelectedDates.MinimumDate;
                 if (minSelectedDate.HasValue && (date.Value > minSelectedDate.Value))
@@ -371,7 +371,7 @@ namespace Microsoft.Windows.Controls
             "DisplayMode",
             typeof(CalendarMode),
             typeof(Calendar),
-            new FrameworkPropertyMetadata(CalendarMode.Month, OnDisplayModePropertyChanged), 
+            new FrameworkPropertyMetadata(CalendarMode.Month, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, OnDisplayModePropertyChanged),
             new ValidateValueCallback(IsValidDisplayMode));
 
         /// <summary>
@@ -390,32 +390,32 @@ namespace Microsoft.Windows.Controls
             switch (mode)
             {
                 case CalendarMode.Month:
-                {
-                    if (oldMode == CalendarMode.Year || oldMode == CalendarMode.Decade)
                     {
-                        // Cancel highlight when switching to month display mode
-                        c.HoverStart = null;
-                        c.CurrentDate = c.DisplayDate;
-                    }
+                        if (oldMode == CalendarMode.Year || oldMode == CalendarMode.Decade)
+                        {
+                            // Cancel highlight when switching to month display mode
+                            c.HoverStart = null;
+                            c.CurrentDate = c.DisplayDate;
+                        }
 
-                    c.UpdateCellItems();
-                    break;
-                }
+                        c.UpdateCellItems();
+                        break;
+                    }
 
                 case CalendarMode.Year:
                 case CalendarMode.Decade:
-                {
-                    if (oldMode == CalendarMode.Month)
                     {
-                        c.DisplayDate = c.CurrentDate;
+                        if (oldMode == CalendarMode.Month)
+                        {
+                            c.DisplayDate = c.CurrentDate;
+                        }
+
+                        c.UpdateCellItems();
+                        break;
                     }
 
-                    c.UpdateCellItems();
-                    break;
-                }
-
-                default: 
-                    Debug.Assert(false); 
+                default:
+                    Debug.Assert(false);
                     break;
             }
 
@@ -519,7 +519,7 @@ namespace Microsoft.Windows.Controls
             "SelectedDate",
             typeof(DateTime?),
             typeof(Calendar),
-            new FrameworkPropertyMetadata(OnSelectedDateChanged));
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, OnSelectedDateChanged));
 
         /// <summary>
         /// SelectedDateProperty property changed handler.
@@ -609,7 +609,7 @@ namespace Microsoft.Windows.Controls
             "SelectionMode",
             typeof(CalendarSelectionMode),
             typeof(Calendar),
-            new FrameworkPropertyMetadata(OnSelectionModeChanged),
+            new FrameworkPropertyMetadata(CalendarSelectionMode.SingleDate, OnSelectionModeChanged),
             new ValidateValueCallback(IsValidSelectionMode));
 
         private static void OnSelectionModeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -629,6 +629,8 @@ namespace Microsoft.Windows.Controls
         #region Internal Events
 
         internal event MouseButtonEventHandler DayButtonMouseUp;
+
+        internal event RoutedEventHandler DayKeyDown;
 
         #endregion Internal Events
 
@@ -851,6 +853,15 @@ namespace Microsoft.Windows.Controls
         internal void OnDayButtonMouseUp(MouseButtonEventArgs e)
         {
             MouseButtonEventHandler handler = this.DayButtonMouseUp;
+            if (null != handler)
+            {
+                handler(this, e);
+            }
+        }
+
+        internal void OnDayKeyDown(RoutedEventArgs e)
+        {
+            RoutedEventHandler handler = this.DayKeyDown;
             if (null != handler)
             {
                 handler(this, e);

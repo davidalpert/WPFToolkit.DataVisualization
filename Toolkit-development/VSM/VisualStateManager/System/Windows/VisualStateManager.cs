@@ -256,7 +256,7 @@ namespace System.Windows
                         // storyboards will not be able to resolve target names. Thus,
                         // if the element or control is unloaded, don't start the new
                         // storyboards.
-                        (element.IsLoaded && control.IsLoaded))
+                        (element.IsLoaded && (control != null) && control.IsLoaded))
                     {
                         group.StartNewThenStopOld(element, state.Storyboard);
                         group.RaiseCurrentStateChanged(element, lastState, state, control);
@@ -276,7 +276,7 @@ namespace System.Windows
                             // storyboards will not be able to resolve target names. Thus,
                             // if the element or control is unloaded, don't start the new
                             // storyboards.
-                            (element.IsLoaded && control.IsLoaded))
+                            (element.IsLoaded && (control != null) && control.IsLoaded))
                         {
                             group.StartNewThenStopOld(element, state.Storyboard);
                             group.RaiseCurrentStateChanged(element, lastState, state, control);

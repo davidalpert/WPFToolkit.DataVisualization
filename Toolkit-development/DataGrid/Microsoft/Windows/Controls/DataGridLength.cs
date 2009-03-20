@@ -348,9 +348,9 @@ namespace Microsoft.Windows.Controls
         private const double AutoValue = 1.0;
 
         // static instance of Auto DataGridLength
-        private static readonly DataGridLength _auto = new DataGridLength(AutoValue, DataGridLengthUnitType.Auto);
-        private static readonly DataGridLength _sizeToCells = new DataGridLength(AutoValue, DataGridLengthUnitType.SizeToCells);
-        private static readonly DataGridLength _sizeToHeader = new DataGridLength(AutoValue, DataGridLengthUnitType.SizeToHeader);
+        private static readonly DataGridLength _auto = new DataGridLength(AutoValue, DataGridLengthUnitType.Auto, 0d, 0d);
+        private static readonly DataGridLength _sizeToCells = new DataGridLength(AutoValue, DataGridLengthUnitType.SizeToCells, 0d, 0d);
+        private static readonly DataGridLength _sizeToHeader = new DataGridLength(AutoValue, DataGridLengthUnitType.SizeToHeader, 0d, 0d);
 
         #endregion
     }

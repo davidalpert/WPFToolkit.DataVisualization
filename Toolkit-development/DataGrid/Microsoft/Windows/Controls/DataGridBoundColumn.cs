@@ -59,7 +59,7 @@ namespace Microsoft.Windows.Controls
                 {
                     if (!IsReadOnly)
                     {
-                        DataGridHelper.EnsureTwoWay(_binding);
+                        DataGridHelper.EnsureTwoWayIfNotOneWay(_binding);
                     }
 
                     _bindingEnsured = true;
@@ -74,11 +74,23 @@ namespace Microsoft.Windows.Controls
                 {
                     BindingBase oldBinding = _binding;
                     _binding = value;
+                    CoerceValue(IsReadOnlyProperty);
                     CoerceValue(SortMemberPathProperty);
                     _bindingEnsured = false;
                     OnBindingChanged(oldBinding, _binding);
                 }
             }
+        }
+
+        protected override bool OnCoerceIsReadOnly(bool baseValue)
+        {
+            if (DataGridHelper.IsOneWay(_binding))
+            {
+                return true;
+            }
+
+            // only call the base if we dont want to force IsReadOnly true
+            return base.OnCoerceIsReadOnly(baseValue);
         }
 
         /// <summary>
@@ -229,7 +241,7 @@ namespace Microsoft.Windows.Controls
         #region Data
 
         private BindingBase _binding;
-        private bool _bindingEnsured;
+        private bool _bindingEnsured = true;
 
         #endregion
     }

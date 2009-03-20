@@ -160,16 +160,15 @@ namespace Microsoft.Windows.Controls
             return result;
         }
 
-        public static string ToDecadeRangeString(DateTime? date)
+        public static string ToDecadeRangeString(int decade)
         {
             string result = string.Empty;
             DateTimeFormatInfo format = GetCurrentDateFormat();
 
-            if (date.HasValue && format != null)
+            if (format != null)
             {
-                int decadeYearStart = DateTimeHelper.DecadeOfDate(date.Value);
-                int decadeYearEnd = DateTimeHelper.EndOfDecade(date.Value);
-                result = decadeYearStart.ToString(format) + "-" + decadeYearEnd.ToString(format);
+                int decadeEnd = decade + 9;
+                result = decade.ToString(format) + "-" + decadeEnd.ToString(format);
             }
 
             return result;
