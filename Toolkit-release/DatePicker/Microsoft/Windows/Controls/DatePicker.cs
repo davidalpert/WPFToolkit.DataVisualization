@@ -166,7 +166,7 @@ namespace Microsoft.Windows.Controls
             "DisplayDate",
             typeof(DateTime),
             typeof(DatePicker),
-            new FrameworkPropertyMetadata(null, CoerceDisplayDate));
+            new FrameworkPropertyMetadata(DateTime.Now, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, null, CoerceDisplayDate));
 
         private static object CoerceDisplayDate(DependencyObject d, object value)
         {
@@ -199,7 +199,7 @@ namespace Microsoft.Windows.Controls
             "DisplayDateEnd",
             typeof(DateTime?),
             typeof(DatePicker),
-            new FrameworkPropertyMetadata(OnDisplayDateEndChanged, CoerceDisplayDateEnd));
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, OnDisplayDateEndChanged, CoerceDisplayDateEnd));
 
         /// <summary>
         /// DisplayDateEndProperty property changed handler.
@@ -245,7 +245,7 @@ namespace Microsoft.Windows.Controls
             "DisplayDateStart",
             typeof(DateTime?),
             typeof(DatePicker),
-            new FrameworkPropertyMetadata(OnDisplayDateStartChanged, CoerceDisplayDateStart));
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, OnDisplayDateStartChanged, CoerceDisplayDateStart));
 
         /// <summary>
         /// DisplayDateStartProperty property changed handler.
@@ -315,7 +315,7 @@ namespace Microsoft.Windows.Controls
             "IsDropDownOpen",
             typeof(bool),
             typeof(DatePicker),
-            new PropertyMetadata(OnIsDropDownOpenChanged));
+            new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, OnIsDropDownOpenChanged));
 
         /// <summary>
         /// IsDropDownOpenProperty property changed handler.
@@ -392,7 +392,7 @@ namespace Microsoft.Windows.Controls
             "SelectedDate",
             typeof(DateTime?),
             typeof(DatePicker),
-            new FrameworkPropertyMetadata(OnSelectedDateChanged, CoerceSelectedDate));
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault , OnSelectedDateChanged, CoerceSelectedDate));
 
         /// <summary>
         /// SelectedDateProperty property changed handler.
@@ -478,7 +478,7 @@ namespace Microsoft.Windows.Controls
             "SelectedDateFormat",
             typeof(DatePickerFormat),
             typeof(DatePicker),
-            new FrameworkPropertyMetadata(OnSelectedDateFormatChanged),
+            new FrameworkPropertyMetadata(DatePickerFormat.Long, OnSelectedDateFormatChanged),
             IsValidSelectedDateFormat);
 
         /// <summary>
@@ -866,15 +866,18 @@ namespace Microsoft.Windows.Controls
             }
         }
 
-        private void Calendar_KeyDown(object sender, KeyEventArgs e)
+        private void CalendarDayButton_KeyDown(object sender, RoutedEventArgs e)
         {
             Calendar c = sender as Calendar;
-            Debug.Assert(c != null);
+            KeyEventArgs args = (KeyEventArgs)e;
 
-            if (!e.Handled && (e.Key == Key.Enter || e.Key == Key.Space || e.Key == Key.Escape) && c.DisplayMode == CalendarMode.Month)
+            Debug.Assert(c != null);
+            Debug.Assert(args != null);
+
+            if ((args.Key == Key.Enter || args.Key == Key.Space || args.Key == Key.Escape) && c.DisplayMode == CalendarMode.Month)
             {
                 this.IsDropDownOpen = false;
-            }            
+            }
         }
 
         private void Calendar_SelectedDatesChanged(object sender, SelectionChangedEventArgs e)
@@ -984,7 +987,7 @@ namespace Microsoft.Windows.Controls
             _calendar.DayButtonMouseUp += new MouseButtonEventHandler(Calendar_DayButtonMouseUp);
             _calendar.DisplayDateChanged += new EventHandler<CalendarDateChangedEventArgs>(Calendar_DisplayDateChanged);
             _calendar.SelectedDatesChanged += new EventHandler<SelectionChangedEventArgs>(Calendar_SelectedDatesChanged);
-            _calendar.KeyDown += new KeyEventHandler(Calendar_KeyDown);
+            _calendar.DayKeyDown += new RoutedEventHandler(CalendarDayButton_KeyDown);
             _calendar.HorizontalAlignment = HorizontalAlignment.Left;
             _calendar.VerticalAlignment = VerticalAlignment.Top;
 

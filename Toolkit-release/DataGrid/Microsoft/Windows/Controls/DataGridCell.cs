@@ -424,14 +424,17 @@ namespace Microsoft.Windows.Controls
             var cell = d as DataGridCell;
             var column = cell.Column;
             var dataGrid = cell.DataGridOwner;
+            
+            // We dont use the cell & 'baseValue' here because this property is read only on cell.
+            // the column may coerce a default value to 'true', so we'll use it's effective value for IsReadOnly
+            // as the baseValue.
             return DataGridHelper.GetCoercedTransferPropertyValue(
-                cell, 
-                baseValue, 
-                IsReadOnlyProperty,
-                column,   
+                column, 
+                column.IsReadOnly,
                 DataGridColumn.IsReadOnlyProperty,
                 dataGrid, 
                 DataGrid.IsReadOnlyProperty);
+
         }
 
         /// <summary>

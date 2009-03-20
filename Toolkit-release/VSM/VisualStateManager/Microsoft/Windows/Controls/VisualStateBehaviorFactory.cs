@@ -12,14 +12,21 @@ namespace Microsoft.Windows.Controls
     internal class VisualStateBehaviorFactory : TypeHandlerFactory<VisualStateBehavior>
     {
         [ThreadStatic]
-        private static readonly VisualStateBehaviorFactory _instance = new VisualStateBehaviorFactory();
+        private static VisualStateBehaviorFactory _instance;
         
         [ThreadStatic]
         private static bool _registeredKnownTypes;
 
         internal static VisualStateBehaviorFactory Instance
         {
-            get { return VisualStateBehaviorFactory._instance; }
+            get
+            {
+                if (_instance == null)
+                {
+                    _instance = new VisualStateBehaviorFactory();
+                }
+                return VisualStateBehaviorFactory._instance; 
+            }
         }
 
         private VisualStateBehaviorFactory()

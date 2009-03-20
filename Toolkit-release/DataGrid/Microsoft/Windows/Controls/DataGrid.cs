@@ -4413,7 +4413,20 @@ namespace Microsoft.Windows.Controls
                     Focus();
                 }
 
-                CurrentCell = new DataGridCellInfo(rowItem, ColumnFromDisplayIndex(0), this);
+                DataGridCellInfo currentCell = CurrentCell;
+                if (currentCell.Item != rowItem)
+                {
+                    // Change the CurrentCell if the row is different
+                    CurrentCell = new DataGridCellInfo(rowItem, ColumnFromDisplayIndex(0), this);
+                }
+                else
+                {
+                    if (_currentCellContainer != null && _currentCellContainer.IsEditing)
+                    {
+                        // End the pending edit even for the same row
+                        EndEdit(CommitEditCommand, _currentCellContainer, DataGridEditingUnit.Cell, /* exitEditingMode = */ true);
+                    }
+                }
             }
 
             // Select a row when the mode is not None and the unit allows selecting rows
@@ -5111,6 +5124,17 @@ namespace Microsoft.Windows.Controls
             }
         }
 
+        /// <summary>
+        ///     Helper method which handles the arrow key down
+        /// </summary>
+        /// <remarks>
+        ///     ADO.Net has a bug (#524977) where if the row is in edit mode
+        ///     and atleast one of the cells are edited and committed without
+        ///     commiting the row itself, DataView.IndexOf for that row returns -1
+        ///     and DataView.Contains returns false. The Workaround to this problem 
+        ///     is to try to use the previously computed row index if the operations 
+        ///     are in the same row scope.
+        /// </remarks>
         private void OnArrowKeyDown(KeyEventArgs e)
         {
             DataGridCell currentCellContainer = CurrentCellContainer;
@@ -5140,7 +5164,15 @@ namespace Microsoft.Windows.Controls
                         }
 
                         int currentDisplayIndex = this.CurrentColumn.DisplayIndex;
-                        int currentRowIndex = Items.IndexOf(CurrentItem);
+                        object currentItem = CurrentItem;
+                        int currentRowIndex = Items.IndexOf(currentItem);
+
+                        // ADO.Net bug HACK, see remarks.
+                        if (_editingRowIndex >= 0 && currentItem == _editingRowItem)
+                        {
+                            currentRowIndex = _editingRowIndex;
+                        }
+
                         int nextDisplayIndex = currentDisplayIndex;
                         int nextRowIndex = currentRowIndex;
                         bool controlModifier = ((e.KeyboardDevice.Modifiers & ModifierKeys.Control) == ModifierKeys.Control);
@@ -6481,6 +6513,25 @@ namespace Microsoft.Windows.Controls
         }
 
         /// <summary>
+        ///     Helper method to clear SortDescriptions and all related
+        ///     member when ItemsSource changes
+        /// </summary>
+        private void ClearSortDescriptionsOnItemsSourceChange()
+        {
+            Items.SortDescriptions.Clear();
+            _sortingStarted = false;
+            List<int> groupingSortDescriptionIndices = GroupingSortDescriptionIndices;
+            if (groupingSortDescriptionIndices != null)
+            {
+                groupingSortDescriptionIndices.Clear();
+            }
+            foreach (DataGridColumn column in Columns)
+            {
+                column.SortDirection = null;
+            }
+        }
+
+        /// <summary>
         ///     Coercion callback for ItemsSource property
         /// </summary>
         /// <remarks>
@@ -6497,8 +6548,7 @@ namespace Microsoft.Windows.Controls
             DataGrid dataGrid = (DataGrid)d;
             if (baseValue != dataGrid._cachedItemsSource && dataGrid._cachedItemsSource != null)
             {
-                dataGrid.Items.SortDescriptions.Clear();
-                dataGrid.Items.GroupDescriptions.Clear();
+                dataGrid.ClearSortDescriptionsOnItemsSourceChange();
             }
 
             return baseValue;
@@ -6520,8 +6570,7 @@ namespace Microsoft.Windows.Controls
             // GroupDescriptions here when new value is null.
             if (newValue == null)
             {
-                Items.SortDescriptions.Clear();
-                Items.GroupDescriptions.Clear();
+                ClearSortDescriptionsOnItemsSourceChange();
             }
 
             _cachedItemsSource = newValue;

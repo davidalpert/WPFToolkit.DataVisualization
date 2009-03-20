@@ -157,11 +157,20 @@ namespace Microsoft.Windows.Controls
         private static object OnCoerceIsReadOnly(DependencyObject d, object baseValue)
         {
             var column = d as DataGridColumn;
-            return DataGridHelper.GetCoercedTransferPropertyValue(
-                column, 
-                baseValue, 
+
+            return column.OnCoerceIsReadOnly((bool)baseValue);
+        }
+
+        /// <summary>
+        ///     Subtypes can override this to force IsReadOnly to be coerced to true.
+        /// </summary>
+        protected virtual bool OnCoerceIsReadOnly(bool baseValue)
+        {
+            return (bool)DataGridHelper.GetCoercedTransferPropertyValue(
+                this,
+                baseValue,
                 IsReadOnlyProperty,
-                column.DataGridOwner, 
+                DataGridOwner,
                 DataGrid.IsReadOnlyProperty);
         }
 
@@ -234,6 +243,11 @@ namespace Microsoft.Windows.Controls
             }
 
             column._processingWidthChange = true;
+            if (oldWidth.IsStar != newWidth.IsStar)
+            {
+                column.CoerceValue(MaxWidthProperty);
+            }
+
             try
             {
                 if (dataGrid != null && (newWidth.IsStar ^ oldWidth.IsStar))
@@ -351,6 +365,28 @@ namespace Microsoft.Windows.Controls
         }
 
         /// <summary>
+        ///     Helper method which coerces the DesiredValue or DisplayValue
+        ///     of the width.
+        /// </summary>
+        private static double CoerceDesiredOrDisplayWidthValue(double widthValue, double memberValue, DataGridLengthUnitType type)
+        {
+            if (DoubleUtil.IsNaN(memberValue))
+            {
+                if (type == DataGridLengthUnitType.Pixel)
+                {
+                    memberValue = widthValue;
+                }
+                else if (type == DataGridLengthUnitType.Auto ||
+                    type == DataGridLengthUnitType.SizeToCells ||
+                    type == DataGridLengthUnitType.SizeToHeader)
+                {
+                    memberValue = 0d;
+                }
+            }
+            return memberValue;
+        }
+
+        /// <summary>
         ///     Coerces the WidthProperty based on the DataGrid transferred property rules
         /// </summary>
         private static object OnCoerceWidth(DependencyObject d, object baseValue)
@@ -363,8 +399,9 @@ namespace Microsoft.Windows.Controls
                 column.DataGridOwner, 
                 DataGrid.ColumnWidthProperty);
 
-            double newDisplayValue = 
-                (DoubleUtil.IsNaN(width.DisplayValue) ? width.DisplayValue : DataGridHelper.CoerceToMinMax(width.DisplayValue, column.MinWidth, column.MaxWidth));
+            double newDesiredValue = CoerceDesiredOrDisplayWidthValue(width.Value, width.DesiredValue, width.UnitType);
+            double newDisplayValue = CoerceDesiredOrDisplayWidthValue(width.Value, width.DisplayValue, width.UnitType);
+            newDisplayValue = (DoubleUtil.IsNaN(newDisplayValue) ? newDisplayValue : DataGridHelper.CoerceToMinMax(newDisplayValue, column.MinWidth, column.MaxWidth));
             if (DoubleUtil.IsNaN(newDisplayValue) || DoubleUtil.AreClose(newDisplayValue, width.DisplayValue))
             {
                 return width;
@@ -373,7 +410,7 @@ namespace Microsoft.Windows.Controls
             return new DataGridLength(
                 width.Value,
                 width.UnitType,
-                width.DesiredValue,
+                newDesiredValue,
                 newDisplayValue);
         }
 
@@ -397,12 +434,21 @@ namespace Microsoft.Windows.Controls
         private static object OnCoerceMaxWidth(DependencyObject d, object baseValue)
         {
             var column = d as DataGridColumn;
-            return DataGridHelper.GetCoercedTransferPropertyValue(
+            double transferValue =  (double)DataGridHelper.GetCoercedTransferPropertyValue(
                 column, 
                 baseValue, 
                 MaxWidthProperty,
                 column.DataGridOwner, 
                 DataGrid.MaxColumnWidthProperty);
+
+            // Coerce the Max Width to 10k pixels if infinity on a star column
+            if (double.IsPositiveInfinity(transferValue) &&
+                column.Width.IsStar)
+            {
+                return _starMaxWidth;
+            }
+
+            return transferValue;
         }
 
         /// <summary>
@@ -1470,6 +1516,7 @@ namespace Microsoft.Windows.Controls
         private BindingBase _clipboardContentBinding;               // Storage for ClipboardContentBinding
         private bool _ignoreRedistributionOnWidthChange = false;    // Flag which indicates to ignore recomputation of column widths on width change of column
         private bool _processingWidthChange = false;                // Flag which indicates that execution of width change callback to avoid recursions.
+        private const double _starMaxWidth = 10000d;                // Max Width constant for star columns
 
         #endregion
     }

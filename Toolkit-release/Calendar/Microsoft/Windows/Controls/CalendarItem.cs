@@ -282,10 +282,10 @@ namespace Microsoft.Windows.Controls.Primitives
                 selectedYear = DateTime.Today;
             }
 
-            int decade = DateTimeHelper.DecadeOfDate(selectedYear);
-            int decadeEnd = DateTimeHelper.EndOfDecade(selectedYear);
+            int decade = GetDecadeForDecadeMode(selectedYear);
+            int decadeEnd = decade + 9;
 
-            SetDecadeModeHeaderButton();
+            SetDecadeModeHeaderButton(decade);
             SetDecadeModePreviousButton(decade);
             SetDecadeModeNextButton(decadeEnd);
 
@@ -457,6 +457,43 @@ namespace Microsoft.Windows.Controls.Primitives
 
         #region Private Methods
 
+        private int GetDecadeForDecadeMode(DateTime selectedYear)
+        {
+            int decade = DateTimeHelper.DecadeOfDate(selectedYear);
+
+            // Adjust the decade value if the mouse move selection is on,
+            // such that if first or last year among the children are selected
+            // then return the current selected decade as is.
+            if (_isMonthPressed && _yearView != null)
+            {
+                UIElementCollection yearViewChildren = _yearView.Children;
+                int count = yearViewChildren.Count;
+
+                if (count > 0)
+                {
+                    CalendarButton child = yearViewChildren[0] as CalendarButton;
+                    if (child != null &&
+                        child.DataContext is DateTime &&
+                        ((DateTime)child.DataContext).Year == selectedYear.Year)
+                    {
+                        return (decade + 10);
+                    }
+                }
+
+                if (count > 1)
+                {
+                    CalendarButton child = yearViewChildren[count - 1] as CalendarButton;
+                    if (child != null &&
+                        child.DataContext is DateTime &&
+                        ((DateTime)child.DataContext).Year == selectedYear.Year)
+                    {
+                        return (decade - 10);
+                    }
+                }
+            }
+            return decade;
+        }
+
         private void EndDrag(bool ctrl, CalendarDayButton b)
         {
             if (this.Owner != null && b.DataContext is DateTime)
@@ -484,6 +521,19 @@ namespace Microsoft.Windows.Controls.Primitives
                     Owner.OnDayClick(selectedDate);
                 }
             }
+        }
+
+
+        void DayCell_KeyDown(object sender, RoutedEventArgs e)
+        {
+            Debug.Assert(e != null);
+
+            if (this.Owner == null)
+            {
+                return;
+            }
+
+            this.Owner.OnDayKeyDown(e);
         }
 
         private void Cell_Clicked(object sender, RoutedEventArgs e)
@@ -910,6 +960,7 @@ namespace Microsoft.Windows.Controls.Primitives
                         dayCell.AddHandler(CalendarDayButton.MouseEnterEvent, new MouseEventHandler(Cell_MouseEnter), true);
                         dayCell.AddHandler(CalendarDayButton.MouseLeaveEvent, new MouseEventHandler(Cell_MouseLeave), true);
                         dayCell.Click += new RoutedEventHandler(Cell_Clicked);
+                        dayCell.AddHandler(KeyDownEvent, new RoutedEventHandler(DayCell_KeyDown), true);
 
                         this._monthView.Children.Add(dayCell);
                     }
@@ -940,6 +991,7 @@ namespace Microsoft.Windows.Controls.Primitives
                 }
             }
         }
+
 
         #region Month Mode Display
 
@@ -1197,6 +1249,7 @@ namespace Microsoft.Windows.Controls.Primitives
                 }
                 else
                 {
+                    childButton.DataContext = null;
                     childButton.IsEnabled = false;
                     childButton.Opacity = 0;
                 }
@@ -1270,11 +1323,11 @@ namespace Microsoft.Windows.Controls.Primitives
 
         #region Decade Mode Display
 
-        private void SetDecadeModeHeaderButton()
+        private void SetDecadeModeHeaderButton(int decade)
         {
             if (this._headerButton != null)
             {
-                this._headerButton.Content = DateTimeHelper.ToDecadeRangeString(DisplayDate);
+                this._headerButton.Content = DateTimeHelper.ToDecadeRangeString(decade);
                 this._headerButton.IsEnabled = false;
             }
         }

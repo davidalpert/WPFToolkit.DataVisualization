@@ -124,14 +124,7 @@ namespace Microsoft.Windows.Automation.Peers
         ///
         protected override string GetNameCore()
         {
-            // It is better to get the clipboard content instead of wrapper peer Name which is empty in most cases
-            object cellValue = _column.OnCopyingCellClipboardContent(_item);
-            if (cellValue != null)
-            {
-                return cellValue.ToString();
-            }
-
-            return String.Empty;
+            return string.Format(SR.Get(SRID.DataGridCellItemAutomationPeer_NameCoreFormat), _item, _column.DisplayIndex);
         }
 
         ///

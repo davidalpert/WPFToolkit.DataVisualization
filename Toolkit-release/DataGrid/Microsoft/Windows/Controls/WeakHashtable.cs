@@ -139,22 +139,20 @@ namespace Microsoft.Windows.Controls
                     EqualityWeakReference wX = x as EqualityWeakReference;
                     EqualityWeakReference wY = y as EqualityWeakReference;
 
+                    //Both WeakReferences are gc'd and they both had the same hash
+                    //Since this is only used in Weak Hash table races are not really an issue.
+                    if (wX!= null && wY != null && !wY.IsAlive && !wX.IsAlive)
+                    {
+                        return true;
+                    }
+
                     if (wX != null)
                     {
-                        if (!wX.IsAlive)
-                        {
-                            return false;
-                        }
-
                         x = wX.Target;
                     }
 
                     if (wY != null)
                     {
-                        if (!wY.IsAlive)
-                        {
-                            return false;
-                        }
 
                         y = wY.Target;
                     }
@@ -212,7 +210,7 @@ namespace Microsoft.Windows.Controls
                     return false;
                 }
 
-                if (o == this || (IsAlive && object.ReferenceEquals(o, Target)))
+                if (o == this || object.ReferenceEquals(o, Target))
                 {
                     return true;
                 }

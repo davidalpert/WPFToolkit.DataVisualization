@@ -89,16 +89,22 @@ namespace Microsoft.Windows.Controls.Primitives
         protected override Size MeasureOverride(Size availableSize)
         {
             var baseSize = base.MeasureOverride(availableSize);
-            
-            if (DoubleUtil.IsNaN(DataGridOwner.RowHeaderWidth) &&
-                baseSize.Width > DataGridOwner.RowHeaderActualWidth)
+
+            DataGrid dataGridOwner = DataGridOwner;
+            if (dataGridOwner == null)
             {
-                DataGridOwner.RowHeaderActualWidth = baseSize.Width;
+                return baseSize;
+            }
+
+            if (DoubleUtil.IsNaN(dataGridOwner.RowHeaderWidth) &&
+                baseSize.Width > dataGridOwner.RowHeaderActualWidth)
+            {
+                dataGridOwner.RowHeaderActualWidth = baseSize.Width;
             }
 
             // Regardless of how width the Header wants to be, we use 
             // DataGridOwner.RowHeaderActualWidth to ensure they're all the same size.
-            return new Size(DataGridOwner.RowHeaderActualWidth, baseSize.Height);
+            return new Size(dataGridOwner.RowHeaderActualWidth, baseSize.Height);
         }
 
         #endregion

@@ -126,7 +126,7 @@ namespace Microsoft.Windows.Controls
                 {
                     if (!IsReadOnly)
                     {
-                        DataGridHelper.EnsureTwoWay(_selectedValueBinding);
+                        DataGridHelper.EnsureTwoWayIfNotOneWay(_selectedValueBinding);
                     }
 
                     _selectedValueBindingEnsured = true;
@@ -141,12 +141,25 @@ namespace Microsoft.Windows.Controls
                 {
                     BindingBase oldBinding = _selectedValueBinding;
                     _selectedValueBinding = value;
+                    CoerceValue(IsReadOnlyProperty);
                     CoerceValue(SortMemberPathProperty);
                     _selectedValueBindingEnsured = false;
                     OnSelectedValueBindingChanged(oldBinding, _selectedValueBinding);
                 }
             }
         }
+
+        protected override bool OnCoerceIsReadOnly(bool baseValue)
+        {
+            if (DataGridHelper.IsOneWay(EffectiveBinding))
+            {
+                return true;
+            }
+
+            // only call the base if we dont want to force IsReadOnly true
+            return base.OnCoerceIsReadOnly(baseValue);
+        }
+
 
         /// <summary>
         ///     The binding that will be applied to the SelectedItem property of the ComboBoxValue.
@@ -162,7 +175,7 @@ namespace Microsoft.Windows.Controls
                 {
                     if (!IsReadOnly)
                     {
-                        DataGridHelper.EnsureTwoWay(_selectedItemBinding);
+                        DataGridHelper.EnsureTwoWayIfNotOneWay(_selectedItemBinding);
                     }
 
                     _selectedItemBindingEnsured = true;
@@ -177,6 +190,7 @@ namespace Microsoft.Windows.Controls
                 {
                     BindingBase oldBinding = _selectedItemBinding;
                     _selectedItemBinding = value;
+                    CoerceValue(IsReadOnlyProperty);
                     CoerceValue(SortMemberPathProperty);
                     _selectedItemBindingEnsured = false;
                     OnSelectedItemBindingChanged(oldBinding, _selectedItemBinding);
@@ -198,7 +212,7 @@ namespace Microsoft.Windows.Controls
                 {
                     if (!IsReadOnly)
                     {
-                        DataGridHelper.EnsureTwoWay(_textBinding);
+                        DataGridHelper.EnsureTwoWayIfNotOneWay(_textBinding);
                     }
 
                     _textBindingEnsured = true;
@@ -213,6 +227,7 @@ namespace Microsoft.Windows.Controls
                 {
                     BindingBase oldBinding = _textBinding;
                     _textBinding = value;
+                    CoerceValue(IsReadOnlyProperty);
                     CoerceValue(SortMemberPathProperty);
                     _textBindingEnsured = false;
                     OnTextBindingChanged(oldBinding, _textBinding);
@@ -255,6 +270,42 @@ namespace Microsoft.Windows.Controls
         #region Styling
 
         /// <summary>
+        ///     The default value of the ElementStyle property.
+        ///     This value can be used as the BasedOn for new styles.
+        /// </summary>
+        public static Style DefaultElementStyle
+        {
+            get
+            {
+                if (_defaultElementStyle == null)
+                {
+                    Style style = new Style(typeof(ComboBox));
+
+                    // Set IsSynchronizedWithCurrentItem to false by default
+                    style.Setters.Add(new Setter(ComboBox.IsSynchronizedWithCurrentItemProperty, false));
+
+                    style.Seal();
+                    _defaultElementStyle = style;
+                }
+
+                return _defaultElementStyle;
+            }
+        }
+
+        /// <summary>
+        ///     The default value of the EditingElementStyle property.
+        ///     This value can be used as the BasedOn for new styles.
+        /// </summary>
+        public static Style DefaultEditingElementStyle
+        {
+            get
+            {
+                // return the same as that of DefaultElementStyle
+                return DefaultElementStyle;
+            }
+        }
+
+        /// <summary>
         ///     A style that is applied to the generated element when not editing.
         ///     The TargetType of the style depends on the derived column class.
         /// </summary>
@@ -268,7 +319,7 @@ namespace Microsoft.Windows.Controls
         ///     The DependencyProperty for the ElementStyle property.
         /// </summary>
         public static readonly DependencyProperty ElementStyleProperty =
-            DataGridBoundColumn.ElementStyleProperty.AddOwner(typeof(DataGridComboBoxColumn));
+            DataGridBoundColumn.ElementStyleProperty.AddOwner(typeof(DataGridComboBoxColumn), new FrameworkPropertyMetadata(DefaultElementStyle));
 
         /// <summary>
         ///     A style that is applied to the generated element when editing.
@@ -284,7 +335,7 @@ namespace Microsoft.Windows.Controls
         ///     The DependencyProperty for the EditingElementStyle property.
         /// </summary>
         public static readonly DependencyProperty EditingElementStyleProperty =
-            DataGridBoundColumn.EditingElementStyleProperty.AddOwner(typeof(DataGridComboBoxColumn));
+            DataGridBoundColumn.EditingElementStyleProperty.AddOwner(typeof(DataGridComboBoxColumn), new FrameworkPropertyMetadata(DefaultEditingElementStyle));
 
         /// <summary>
         ///     Assigns the ElementStyle to the desired property on the given element.
@@ -622,13 +673,14 @@ namespace Microsoft.Windows.Controls
 
         #region Data
 
+        private static Style _defaultElementStyle;
+
         private BindingBase _selectedValueBinding;
         private BindingBase _selectedItemBinding;
         private BindingBase _textBinding;
-        private bool _selectedValueBindingEnsured = false;
-        private bool _selectedItemBindingEnsured = false;
-        private bool _textBindingEnsured = false;
-
+        private bool _selectedValueBindingEnsured = true;
+        private bool _selectedItemBindingEnsured = true;
+        private bool _textBindingEnsured = true;
         #endregion
     }
 }

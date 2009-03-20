@@ -17,6 +17,9 @@ DataGrid_CommitEditCommandText=Commit Edit
 DataGrid_CancelEditCommandText=Cancel Edit
 DataGrid_DeleteCommandText=Delete
 
+; DataGrid Automation Strings
+DataGridCellItemAutomationPeer_NameCoreFormat=Item: {0}, Column Display Index: {1}
+
 CalendarAutomationPeer_CalendarButtonLocalizedControlType=Calendar button
 CalendarAutomationPeer_DayButtonLocalizedControlType=Day button
 CalendarAutomationPeer_BlackoutDayHelpText=Blackout Day - {0}

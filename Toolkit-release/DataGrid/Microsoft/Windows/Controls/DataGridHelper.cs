@@ -534,7 +534,56 @@ namespace Microsoft.Windows.Controls
 
         #region Binding
 
-        internal static void EnsureTwoWay(BindingBase bindingBase)
+        /// <summary>
+        ///     Returns true if the binding (or any part of it) is OneWay.
+        /// </summary>
+        internal static bool IsOneWay(BindingBase bindingBase)
+        {
+            if (bindingBase == null)
+            {
+                return false;
+            }
+
+            // If it is a standard Binding, then check if it's Mode is OneWay
+            Binding binding = bindingBase as Binding;
+            if (binding != null)
+            {
+                return binding.Mode == BindingMode.OneWay;
+            }
+
+            // A multi-binding can be OneWay as well
+            MultiBinding multiBinding = bindingBase as MultiBinding;
+            if (multiBinding != null)
+            {
+                return multiBinding.Mode == BindingMode.OneWay;
+            }
+
+            // A priority binding is a list of bindings, if any are OneWay, we'll call it OneWay
+            PriorityBinding priBinding = bindingBase as PriorityBinding;
+            if (priBinding != null)
+            {
+                Collection<BindingBase> subBindings = priBinding.Bindings;
+                int count = subBindings.Count;
+                for (int i = 0; i < count; i++)
+                {
+                    if (IsOneWay(subBindings[i]))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        ///     Ensures that the given binding is two way if it's not already OneWay.
+        ///     The default Mode is BindingMode.Default which will become effectively OneWay
+        ///     or TwoWay based on the property being bound to.  We ensure it's TwoWay & Explicit
+        ///     to make sure it shows up in the bindingGroup, however this causes problems for
+        ///     read-only properties, so we dont touch them.
+        /// </summary>
+        internal static void EnsureTwoWayIfNotOneWay(BindingBase bindingBase)
         {
             if (bindingBase == null)
             {
@@ -545,10 +594,19 @@ namespace Microsoft.Windows.Controls
             Binding binding = bindingBase as Binding;
             if (binding != null)
             {
-                if (binding.Mode != BindingMode.TwoWay)
+                if (binding.Mode != BindingMode.OneWay)
                 {
-                    binding.Mode = BindingMode.TwoWay;
-                    binding.UpdateSourceTrigger = UpdateSourceTrigger.Explicit;
+                    if (binding.Mode != BindingMode.TwoWay)
+                    {
+                        binding.Mode = BindingMode.TwoWay;
+                    }
+
+                    // Be careful not to modify bindings that we've already used.  We have no way to know this exactly,
+                    // because that information is private, but we can avoid changing something that we've already changed.
+                    if (binding.UpdateSourceTrigger != UpdateSourceTrigger.Explicit)
+                    {
+                        binding.UpdateSourceTrigger = UpdateSourceTrigger.Explicit;
+                    }
                 }
 
                 return;
@@ -558,10 +616,19 @@ namespace Microsoft.Windows.Controls
             MultiBinding multiBinding = bindingBase as MultiBinding;
             if (multiBinding != null)
             {
-                if (multiBinding.Mode != BindingMode.TwoWay)
+                if (multiBinding.Mode != BindingMode.OneWay)
                 {
-                    multiBinding.Mode = BindingMode.TwoWay;
-                    multiBinding.UpdateSourceTrigger = UpdateSourceTrigger.Explicit;
+                    if (multiBinding.Mode != BindingMode.TwoWay)
+                    {
+                        multiBinding.Mode = BindingMode.TwoWay;
+                    }
+
+                    // Be careful not to modify bindings that we've already used.  We have no way to know this exactly,
+                    // because that information is private, but we can avoid changing something that we've already changed.
+                    if (multiBinding.UpdateSourceTrigger != UpdateSourceTrigger.Explicit)
+                    {
+                        multiBinding.UpdateSourceTrigger = UpdateSourceTrigger.Explicit;
+                    }
                 }
 
                 return;
@@ -575,7 +642,7 @@ namespace Microsoft.Windows.Controls
                 int count = subBindings.Count;
                 for (int i = 0; i < count; i++)
                 {
-                    EnsureTwoWay(subBindings[i]);
+                    EnsureTwoWayIfNotOneWay(subBindings[i]);
                 }
             }
         }
