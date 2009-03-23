@@ -90,18 +90,12 @@ Copyright (C) Microsoft Corporation.  All rights reserved.
                                                             </ColorAnimationUsingKeyFrames>
                                                         </Storyboard>
                                                     </vsm:VisualState>
-                                                    <vsm:VisualState x:Name="Disabled">
-                                                        <Storyboard>
-                                                            <DoubleAnimationUsingKeyFrames BeginTime="0" Duration="00:00:00.001" Storyboard.TargetName="PART_DisabledVisual" Storyboard.TargetProperty="(UIElement.Opacity)">
-                                                                <SplineDoubleKeyFrame KeyTime="0" Value="1"/>
-                                                            </DoubleAnimationUsingKeyFrames>
-                                                        </Storyboard>
-                                                    </vsm:VisualState>
+                                                    <vsm:VisualState x:Name="Disabled" />
                                                 </vsm:VisualStateGroup>
                                             </vsm:VisualStateManager.VisualStateGroups>
 
                                             <!--Start UI-->
-                                            <Grid Height="18" Width="19" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0" Background="#11FFFFFF">
+                                            <Grid Height="18" Width="19" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0" Background="#11FFFFFF" FlowDirection="LeftToRight">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="20*"/>
                                                     <ColumnDefinition Width="20*"/>
