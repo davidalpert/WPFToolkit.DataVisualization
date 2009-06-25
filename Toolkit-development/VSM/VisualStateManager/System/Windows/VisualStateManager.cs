@@ -256,12 +256,12 @@ namespace System.Windows
                         // storyboards will not be able to resolve target names. Thus,
                         // if the element or control is unloaded, don't start the new
                         // storyboards.
-                        (element.IsLoaded && (control != null) && control.IsLoaded))
+                        (element.IsLoaded && (control == null || control.IsLoaded)))
                     {
                         group.StartNewThenStopOld(element, state.Storyboard);
-                        group.RaiseCurrentStateChanged(element, lastState, state, control);
                     }
 
+                    group.RaiseCurrentStateChanged(element, lastState, state, control);
                     transition.DynamicStoryboardCompleted = true;
                 };
 
@@ -276,12 +276,12 @@ namespace System.Windows
                             // storyboards will not be able to resolve target names. Thus,
                             // if the element or control is unloaded, don't start the new
                             // storyboards.
-                            (element.IsLoaded && (control != null) && control.IsLoaded))
+                            (element.IsLoaded && (control == null || control.IsLoaded)))
                         {
                             group.StartNewThenStopOld(element, state.Storyboard);
-                            group.RaiseCurrentStateChanged(element, lastState, state, control);
                         }
 
+                        group.RaiseCurrentStateChanged(element, lastState, state, control);
                         transition.Storyboard.Completed -= transitionCompleted;
                         transition.ExplicitStoryboardCompleted = true;
                     });

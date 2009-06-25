@@ -64,7 +64,7 @@ namespace Microsoft.Windows.Automation.Peers
         /// <returns>The control type.</returns>
         protected override AutomationControlType GetAutomationControlTypeCore()
         {
-            return AutomationControlType.ComboBox;
+            return AutomationControlType.Custom;
         }
 
         /// <summary>
@@ -84,31 +84,6 @@ namespace Microsoft.Windows.Automation.Peers
         protected override string GetLocalizedControlTypeCore()
         {
             return SR.Get(SRID.DatePickerAutomationPeer_LocalizedControlType);
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        protected override string GetNameCore()
-        {
-            string nameCore = base.GetNameCore();
-
-            if (string.IsNullOrEmpty(nameCore))
-            {
-                AutomationPeer labeledByCore = this.GetLabeledByCore();
-                if (labeledByCore != null)
-                {
-                    nameCore = labeledByCore.GetName();
-                }
-
-                if (string.IsNullOrEmpty(nameCore))
-                {
-                    nameCore = this.OwningDatePicker.ToString();
-                }
-            }
-
-            return nameCore;
         }
 
         #endregion Protected Methods
@@ -160,5 +135,17 @@ namespace Microsoft.Windows.Automation.Peers
         }
 
         #endregion IValueProvider
+
+        #region Internal Methods
+        // Never inline, as we don't want to unnecessarily link the automation DLL
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        internal void RaiseValuePropertyChangedEvent(string oldValue, string newValue)
+        {
+            if (oldValue != newValue)
+            {
+                RaisePropertyChangedEvent(ValuePatternIdentifiers.ValueProperty, oldValue, newValue);
+            }
+        }
+        #endregion
     }
 }

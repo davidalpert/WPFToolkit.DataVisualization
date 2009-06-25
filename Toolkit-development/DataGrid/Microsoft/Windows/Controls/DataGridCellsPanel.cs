@@ -236,7 +236,7 @@ namespace Microsoft.Windows.Controls
             double totalAvailableSpace = GetViewportWidth() - cellsPanelOffset;
             double allocatedSpace = 0.0;
 
-            if (DoubleUtil.LessThanOrClose(totalAvailableSpace, 0.0))
+            if (DoubleUtil.LessThan(totalAvailableSpace, 0.0))
             {
                 return measureSize;
             }
@@ -247,6 +247,7 @@ namespace Microsoft.Windows.Controls
             bool notVirtualizing = !IsVirtualizing;
             bool generateAll = invalidAverage || hasStarColumns || notVirtualizing;
             int frozenColumnCount = parentDataGrid.FrozenColumnCount;
+            int previousColumnIndex = -1;
 
             bool redeterminationNeeded = false;
             Size childSize;
@@ -270,7 +271,7 @@ namespace Microsoft.Windows.Controls
                     // sequence either because of gaps in childs to be generated or
                     // due to mismatch in the order of column index and displayindex
                     int columnIndex = parentDataGrid.ColumnIndexFromDisplayIndex(i);
-                    if (columnIndex != childIndex)
+                    if (columnIndex != childIndex || previousColumnIndex != (columnIndex - 1))
                     {
                         childIndex = columnIndex;
                         if (generatorState != null)
@@ -279,6 +280,7 @@ namespace Microsoft.Windows.Controls
                             generatorState = null;
                         }
                     }
+                    previousColumnIndex = columnIndex;
 
                     // Generate the child if the all the children are to be generated,
                     // initialize the child size.
@@ -409,6 +411,8 @@ namespace Microsoft.Windows.Controls
                 bool isColumnHeader = ParentPresenter is DataGridColumnHeadersPresenter;
                 if (isColumnHeader)
                 {
+                    Size headerSize = EnsureAtleastOneHeader(generator, constraint, realizedColumnIndices, realizedColumnDisplayIndices);
+                    measureSize.Height = Math.Max(measureSize.Height, headerSize.Height);
                     redeterminationNeeded = true;
                 }
                 else
@@ -806,6 +810,48 @@ namespace Microsoft.Windows.Controls
             }
 
             return exists;
+        }
+
+        /// <summary>
+        ///     Method which ensures that atleast one column
+        ///     header is generated. Such a generation would
+        ///     help in determination of the height.
+        /// </summary>
+        private Size EnsureAtleastOneHeader(IItemContainerGenerator generator,
+            Size constraint,
+            List<int> realizedColumnIndices,
+            List<int> realizedColumnDisplayIndices)
+        {
+            DataGrid parentDataGrid = ParentDataGrid;
+            int columnCount = parentDataGrid.Columns.Count;
+            Size childSize = new Size();
+            if (RealizedChildren.Count == 0 && columnCount > 0)
+            {
+                for (int i = 0; i < columnCount; i++)
+                {
+                    DataGridColumn column = parentDataGrid.Columns[i];
+                    if (column.IsVisible)
+                    {
+                        int childIndex = i;
+                        using (generator.StartAt(IndexToGeneratorPositionForStart(generator, childIndex, out childIndex), GeneratorDirection.Forward, true))
+                        {
+                            UIElement child = GenerateChild(generator, constraint, column, ref childIndex, out childSize);
+                            if (child != null)
+                            {
+                                int displayIndexListIterator = 0;
+                                AddToIndicesListIfNeeded(
+                                    realizedColumnIndices,
+                                    realizedColumnDisplayIndices,
+                                    i,
+                                    column.DisplayIndex,
+                                    ref displayIndexListIterator);
+                                return childSize;
+                            }
+                        }
+                    }
+                }
+            }
+            return childSize;
         }
 
         /// <summary>

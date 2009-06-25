@@ -5,6 +5,8 @@
 //---------------------------------------------------------------------------
 
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -163,12 +165,95 @@ namespace Microsoft.Windows.Controls.Primitives
                             if (!DoubleUtil.AreClose(cell.ActualWidth, columns[i].Width.DisplayValue))
                             {
                                 InvalidateDataGridCellsPanelMeasureAndArrange();
+                                arrangeInvalidated = true;
                                 break;
                             }
                         }
                     }
                 }
+
+                if (!arrangeInvalidated && InvalidateCellsPanelOnColumnChange())
+                {
+                    InvalidateDataGridCellsPanelMeasureAndArrange();
+                }
             }
+        }
+
+        private bool InvalidateCellsPanelOnColumnChange()
+        {
+            if (InternalItemsHost == null)
+                return false;
+
+            bool isVirtualizing = VirtualizingStackPanel.GetIsVirtualizing(this);
+            List<RealizedColumnsBlock> blockList = null;
+            
+            if (isVirtualizing && !DataGridOwner.InternalColumns.RebuildRealizedColumnsBlockListForVirtualizedRows)
+            {
+                blockList = DataGridOwner.InternalColumns.RealizedColumnsBlockListForVirtualizedRows;
+            }
+            else if (!isVirtualizing && !DataGridOwner.InternalColumns.RebuildRealizedColumnsBlockListForNonVirtualizedRows)
+            {
+                blockList = DataGridOwner.InternalColumns.RealizedColumnsBlockListForNonVirtualizedRows;
+            }
+
+            // either RebuildRealizedColumnsBlockListForNonVirtualizedRows or RebuildRealizedColumnsBlockListForVirtualizedRows is true 
+            if (blockList == null)
+            {
+                return true;
+            }
+             
+            IList children = InternalItemsHost.Children;
+            int lastRealizedColumnBlockIndex = 0, lastChildrenIndex = 0;
+            int childrenCount = children.Count;
+            int blockListCount = blockList.Count;
+            int allColumnsCount = DataGridOwner.Columns.Count;
+            bool foundInRealizedColumns, foundInCells;
+
+            for (int i = 0; i < allColumnsCount; i++)
+            {
+                foundInRealizedColumns = false;
+                foundInCells = false;
+
+                // find column in RealizedColumns
+                if (lastRealizedColumnBlockIndex < blockListCount)
+                {
+                    RealizedColumnsBlock rcb = blockList[lastRealizedColumnBlockIndex];
+                    if ( (rcb.StartIndex <= i) && (i <= rcb.EndIndex) )
+                    {
+                        foundInRealizedColumns = true;
+                        // reached end of this block, start from next block
+                        if (i == rcb.EndIndex)
+                        {
+                            lastRealizedColumnBlockIndex++;
+                        }
+                    }
+                }
+
+                // find column in Children
+                if (lastChildrenIndex < childrenCount)
+                {
+                    DataGridCell cell = children[lastChildrenIndex] as DataGridCell;
+                    if (DataGridOwner.Columns[i] == cell.Column)
+                    {
+                        foundInCells = true;
+                        lastChildrenIndex++;
+                    }
+                }
+
+                // if found in one but not the other or reached end of either list.
+                bool reachedEndofBlockList = (lastRealizedColumnBlockIndex == blockListCount);
+                bool reachedEndofChildrenList = (lastChildrenIndex == childrenCount); 
+                if ( (foundInCells != foundInRealizedColumns) ||  (reachedEndofBlockList != reachedEndofChildrenList)  )
+                {
+                    return true;
+                }
+                else if (reachedEndofBlockList == true)
+                {
+                    //reached end of both columns and children lists
+                    break;
+                }
+            }
+            return false;
         }
 
         private static object OnCoerceHeight(DependencyObject d, object baseValue)
