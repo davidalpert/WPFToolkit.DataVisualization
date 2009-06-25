@@ -82,6 +82,9 @@ namespace Microsoft.Windows.Controls.Design.VisualStudio
                     builder.AddCustomAttributes(Calendar.CalendarButtonStyleProperty, BrowsableAttribute.No);
                     builder.AddCustomAttributes(Calendar.CalendarDayButtonStyleProperty, BrowsableAttribute.No);
                     builder.AddCustomAttributes(Calendar.CalendarItemStyleProperty, BrowsableAttribute.No);
+
+                    // When it is created from the toolbox
+                    builder.AddCustomAttributes(new FeatureAttribute(typeof(CalendarInitializer)));
                 });
             }
         
@@ -213,6 +216,9 @@ namespace Microsoft.Windows.Controls.Design.VisualStudio
                 {
                     // Hide the Style properties as VS doesn't support setting styles in the property browser
                     builder.AddCustomAttributes(DatePicker.CalendarStyleProperty, BrowsableAttribute.No);
+
+                    // When it is created from the toolbox
+                    builder.AddCustomAttributes(new FeatureAttribute(typeof(DatePickerInitializer)));
                 });
         }
     }

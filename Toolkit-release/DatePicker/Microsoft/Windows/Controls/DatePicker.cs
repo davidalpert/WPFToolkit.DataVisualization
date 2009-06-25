@@ -53,6 +53,7 @@ namespace Microsoft.Windows.Controls
         private string _coercedTextValue;
         private DatePickerTextBox _textBox;
         private IDictionary<DependencyProperty, bool> _isHandlerSuspended;
+        private DateTime? _originalSelectedDate;
 
         #endregion Data
 
@@ -331,6 +332,10 @@ namespace Microsoft.Windows.Controls
             if (dp._popUp != null && dp._popUp.IsOpen != newValue)
             {
                 dp._popUp.IsOpen = newValue;
+                if (newValue)
+                {
+                    dp._originalSelectedDate = dp.SelectedDate;
+                }
             }
         }
 
@@ -565,6 +570,12 @@ namespace Microsoft.Windows.Controls
                     dp.SetValueNoCallback(DatePicker.SelectedDateProperty, null);
                 }
             }
+
+            DatePickerAutomationPeer peer = UIElementAutomationPeer.FromElement(dp) as DatePickerAutomationPeer;
+            // Raise the propetyChangeEvent for Value if Automation Peer exist
+            if (peer != null)
+                peer.RaiseValuePropertyChangedEvent((string)e.OldValue, (string)e.NewValue);
+
         }
 
         private static object OnCoerceText(DependencyObject dObject, object baseValue)
@@ -877,6 +888,10 @@ namespace Microsoft.Windows.Controls
             if ((args.Key == Key.Enter || args.Key == Key.Space || args.Key == Key.Escape) && c.DisplayMode == CalendarMode.Month)
             {
                 this.IsDropDownOpen = false;
+                if (args.Key == Key.Escape)
+                {
+                    SelectedDate = _originalSelectedDate;
+                }
             }
         }
 

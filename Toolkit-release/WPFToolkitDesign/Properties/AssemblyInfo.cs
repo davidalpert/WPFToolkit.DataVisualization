@@ -40,4 +40,4 @@ using System.Windows;
 // by using the '*' as shown below:
 // [assembly: AssemblyVersion("1.0.*")]
 [assembly: AssemblyVersion("3.5.40128.1")]
-[assembly: AssemblyFileVersion("3.5.40320.1")]
+[assembly: AssemblyFileVersion("3.5.40619.1")]

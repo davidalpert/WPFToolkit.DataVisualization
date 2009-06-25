@@ -115,31 +115,6 @@ namespace Microsoft.Windows.Automation.Peers
             return this.Owner.GetType().Name;
         }
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        protected override string GetNameCore()
-        {
-            string nameCore = base.GetNameCore();
-
-            if (string.IsNullOrEmpty(nameCore))
-            {
-                AutomationPeer labeledByCore = this.GetLabeledByCore();
-                if (labeledByCore != null)
-                {
-                    nameCore = labeledByCore.GetName();
-                }
-
-                if (string.IsNullOrEmpty(nameCore))
-                {
-                    nameCore = this.OwningCalendar.ToString();
-                }
-            }
-
-            return nameCore;
-        }
-
         #endregion Protected Methods
 
         #region InternalMethods

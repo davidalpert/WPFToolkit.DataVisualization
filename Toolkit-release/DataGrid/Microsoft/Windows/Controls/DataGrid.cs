@@ -2060,8 +2060,15 @@ namespace Microsoft.Windows.Controls
                 }
             }
 
-            e.CanExecute = canExecute;
-            e.Handled = true;
+            if (canExecute)
+            {
+                e.CanExecute = true;
+                e.Handled = true;
+            }
+            else
+            {
+                e.ContinueRouting = true;
+            }
         }
 
         /// <summary>
@@ -2268,8 +2275,15 @@ namespace Microsoft.Windows.Controls
         /// </summary>
         protected virtual void OnCanExecuteCommitEdit(CanExecuteRoutedEventArgs e)
         {
-            e.CanExecute = CanEndEdit(e, /* commit = */ true);
-            e.Handled = true;
+            if (CanEndEdit(e, /* commit = */ true))
+            {
+                e.CanExecute = true;
+                e.Handled = true;
+            }
+            else
+            {
+                e.ContinueRouting = true;
+            }
         }
 
         /// <summary>
@@ -2434,8 +2448,15 @@ namespace Microsoft.Windows.Controls
         /// </summary>
         protected virtual void OnCanExecuteCancelEdit(CanExecuteRoutedEventArgs e)
         {
-            e.CanExecute = CanEndEdit(e, /* commit = */ false);
-            e.Handled = true;
+            if (CanEndEdit(e, /* commit = */ false))
+            {
+                e.CanExecute = true;
+                e.Handled = true;
+            }
+            else
+            {
+                e.ContinueRouting = true;
+            }
         }
 
         /// <summary>
@@ -2537,7 +2558,6 @@ namespace Microsoft.Windows.Controls
         protected virtual void OnCanExecuteDelete(CanExecuteRoutedEventArgs e)
         {
             e.CanExecute = CanUserDeleteRows &&  // User is allowed to delete
-                CurrentCell.IsValid &&           // There is a current cell
                 (DataItemsSelected > 0) &&       // There is a selection
                 ((_currentCellContainer == null) || !_currentCellContainer.IsEditing); // Not editing a cell
             e.Handled = true;
