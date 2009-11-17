@@ -255,6 +255,7 @@ namespace Microsoft.Windows.Controls
 
             public void Dispose()
             {
+                GC.SuppressFinalize(this);
             }
 
             public bool MoveNext()

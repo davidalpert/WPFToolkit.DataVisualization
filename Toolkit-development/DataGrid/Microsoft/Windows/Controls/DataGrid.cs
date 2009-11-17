@@ -4995,6 +4995,7 @@ namespace Microsoft.Windows.Controls
 
             public void Dispose()
             {
+                GC.SuppressFinalize(this);
                 if (!_wasUpdatingSelectedCells)
                 {
                     _dataGrid.EndUpdateSelectedCells();
