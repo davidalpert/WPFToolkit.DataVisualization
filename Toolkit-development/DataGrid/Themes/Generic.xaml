@@ -126,7 +126,7 @@ Copyright (C) Microsoft Corporation.  All rights reserved.
       <Setter.Value>
         <ControlTemplate TargetType="{x:Type dgp:DataGridColumnHeadersPresenter}">
             <Grid>
-                <dgp:DataGridColumnHeader IsHitTestVisible="False"/>
+                <dgp:DataGridColumnHeader IsHitTestVisible="False" Name="PART_FillerColumnHeader"/>
                 <ItemsPresenter />
             </Grid>
         </ControlTemplate>

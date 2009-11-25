@@ -241,9 +241,9 @@ namespace Microsoft.Windows.Controls.Primitives
 
         #region Protected Methods
 
-        protected override void OnPreviewMouseUp(MouseButtonEventArgs e)
+        protected override void OnMouseUp(MouseButtonEventArgs e)
         {
-            base.OnPreviewMouseUp(e);
+            base.OnMouseUp(e);
 
             if (this.IsMouseCaptured)
             {
@@ -252,6 +252,14 @@ namespace Microsoft.Windows.Controls.Primitives
 
             this._isMonthPressed = false;
             this._isDayPressed = false;
+
+            // In Month mode, we may need to end a drag selection even if  the mouse up isn't on the calendar.
+            if (!e.Handled &&
+                this.Owner.DisplayMode == CalendarMode.Month &&
+                this.Owner.HoverEnd.HasValue)
+            {
+                FinishSelection(this.Owner.HoverEnd.Value);
+            }
         }
 
         protected override void OnLostMouseCapture(MouseEventArgs e)
@@ -494,11 +502,10 @@ namespace Microsoft.Windows.Controls.Primitives
             return decade;
         }
 
-        private void EndDrag(bool ctrl, CalendarDayButton b)
+        private void EndDrag(bool ctrl, DateTime selectedDate)
         {
-            if (this.Owner != null && b.DataContext is DateTime)
+            if (this.Owner != null)
             {
-                DateTime selectedDate = (DateTime)b.DataContext;
                 this.Owner.CurrentDate = selectedDate;
 
                 if (this.Owner.HoverStart.HasValue)
@@ -524,7 +531,7 @@ namespace Microsoft.Windows.Controls.Primitives
         }
 
 
-        void DayCell_KeyDown(object sender, RoutedEventArgs e)
+        private void CellOrMonth_PreviewKeyDown(object sender, RoutedEventArgs e)
         {
             Debug.Assert(e != null);
 
@@ -533,7 +540,7 @@ namespace Microsoft.Windows.Controls.Primitives
                 return;
             }
 
-            this.Owner.OnDayKeyDown(e);
+            this.Owner.OnDayOrMonthPreviewKeyDown(e);
         }
 
         private void Cell_Clicked(object sender, RoutedEventArgs e)
@@ -583,7 +590,7 @@ namespace Microsoft.Windows.Controls.Primitives
                     case CalendarSelectionMode.SingleRange:
                         {
                             DateTime? lastDate = this.Owner.CurrentDate;
-                            this.Owner.SelectedDates.Clear();
+                            this.Owner.SelectedDates.ClearInternal(true /*fireChangeNotification*/);
                             if (shift && lastDate.HasValue)
                             {
                                 this.Owner.SelectedDates.AddRangeInternal(lastDate.Value, clickedDate);
@@ -592,6 +599,7 @@ namespace Microsoft.Windows.Controls.Primitives
                             {
                                 this.Owner.SelectedDate = clickedDate;
                                 this.Owner.HoverStart = null;
+                                this.Owner.HoverEnd = null;
                             }
 
                             break;
@@ -601,7 +609,7 @@ namespace Microsoft.Windows.Controls.Primitives
                         {
                             if (!ctrl)
                             {
-                                this.Owner.SelectedDates.Clear();
+                                this.Owner.SelectedDates.ClearInternal(true /*fireChangeNotification*/);
                             }
 
                             if (shift)
@@ -618,6 +626,7 @@ namespace Microsoft.Windows.Controls.Primitives
                                 {
                                     this.Owner.SelectedDates.Toggle(clickedDate);
                                     this.Owner.HoverStart = null;
+                                    this.Owner.HoverEnd = null;
                                 }
                             }
 
@@ -690,15 +699,14 @@ namespace Microsoft.Windows.Controls.Primitives
                         {
                             if (!this.Owner.HoverStart.HasValue)
                             {
-                                this.Owner.HoverStart = this.Owner.CurrentDate;
+                                this.Owner.HoverStart = this.Owner.HoverEnd = this.Owner.CurrentDate;
                             }
                         }
                         else
                         {
-                            this.Owner.HoverStart = selectedDate;
+                            this.Owner.HoverStart = this.Owner.HoverEnd = selectedDate;
                         }
 
-                        Mouse.Capture(this, CaptureMode.SubTree);
                         break;
                     }
 
@@ -713,15 +721,14 @@ namespace Microsoft.Windows.Controls.Primitives
                         {
                             if (!this.Owner.HoverStart.HasValue)
                             {
-                                this.Owner.HoverStart = this.Owner.CurrentDate;
+                                this.Owner.HoverStart = this.Owner.HoverEnd = this.Owner.CurrentDate;
                             }
                         }
                         else
                         {
-                            this.Owner.HoverStart = selectedDate;
+                            this.Owner.HoverStart = this.Owner.HoverEnd = selectedDate;
                         }
 
-                        Mouse.Capture(this, CaptureMode.SubTree);
                         break;
                     }
                 }
@@ -760,7 +767,7 @@ namespace Microsoft.Windows.Controls.Primitives
                     case CalendarSelectionMode.SingleDate:
                     {
                         this.Owner.DatePickerDisplayDateFlag = true;
-                        this.Owner.HoverStart = null;
+                        this.Owner.HoverStart = this.Owner.HoverEnd = null;
                         if (this.Owner.SelectedDates.Count == 0)
                         {
                             this.Owner.SelectedDates.Add(selectedDate);
@@ -774,17 +781,9 @@ namespace Microsoft.Windows.Controls.Primitives
                     }
                 }
 
+                this.Owner.HoverEnd = selectedDate;
                 this.Owner.CurrentDate = selectedDate;
                 this.Owner.UpdateCellItems();
-            }
-        }
-
-        private void Cell_MouseLeave(object sender, MouseEventArgs e)
-        {
-            CalendarDayButton b = sender as CalendarDayButton;
-            if (b == null)
-            {
-                return;
             }
         }
 
@@ -811,12 +810,18 @@ namespace Microsoft.Windows.Controls.Primitives
                 return;
             }
 
+            FinishSelection((DateTime)b.DataContext);
+            e.Handled = true;
+        }
+
+        private void FinishSelection(DateTime selectedDate)
+        {
             bool ctrl, shift;
             KeyboardHelper.GetMetaKeyState(out ctrl, out shift);
 
             if (this.Owner.SelectionMode == CalendarSelectionMode.None || this.Owner.SelectionMode == CalendarSelectionMode.SingleDate)
             {
-                this.Owner.OnDayClick((DateTime)b.DataContext);
+                this.Owner.OnDayClick(selectedDate);
                 return;
             }
 
@@ -828,14 +833,14 @@ namespace Microsoft.Windows.Controls.Primitives
                     {
                         // Update SelectedDates
                         this.Owner.SelectedDates.ClearInternal();
-                        EndDrag(ctrl, b);
+                        EndDrag(ctrl, selectedDate);
                         break;
                     }
 
                     case CalendarSelectionMode.MultipleRange:
                     {
                         // add the selection (either single day or SingleRange day)
-                        EndDrag(ctrl, b);
+                        EndDrag(ctrl, selectedDate);
                         break;
                     }
                 }
@@ -843,9 +848,10 @@ namespace Microsoft.Windows.Controls.Primitives
             else
             {
                 // If the day is blacked out but also a trailing day we should be able to switch months
-                if (b.IsInactive && b.IsBlackedOut)
+                CalendarDayButton b = GetCalendarDayButton(selectedDate);
+                if (b != null && b.IsInactive && b.IsBlackedOut)
                 {
-                    this.Owner.OnDayClick((DateTime)b.DataContext);
+                    this.Owner.OnDayClick(selectedDate);
                 }
             }
         }
@@ -958,9 +964,8 @@ namespace Microsoft.Windows.Controls.Primitives
                         dayCell.AddHandler(CalendarDayButton.MouseLeftButtonDownEvent, new MouseButtonEventHandler(Cell_MouseLeftButtonDown), true);
                         dayCell.AddHandler(CalendarDayButton.MouseLeftButtonUpEvent, new MouseButtonEventHandler(Cell_MouseLeftButtonUp), true);
                         dayCell.AddHandler(CalendarDayButton.MouseEnterEvent, new MouseEventHandler(Cell_MouseEnter), true);
-                        dayCell.AddHandler(CalendarDayButton.MouseLeaveEvent, new MouseEventHandler(Cell_MouseLeave), true);
                         dayCell.Click += new RoutedEventHandler(Cell_Clicked);
-                        dayCell.AddHandler(KeyDownEvent, new RoutedEventHandler(DayCell_KeyDown), true);
+                        dayCell.AddHandler(PreviewKeyDownEvent, new RoutedEventHandler(CellOrMonth_PreviewKeyDown), true);
 
                         this._monthView.Children.Add(dayCell);
                     }
@@ -984,6 +989,7 @@ namespace Microsoft.Windows.Controls.Primitives
                         monthCell.AddHandler(CalendarButton.MouseLeftButtonDownEvent, new MouseButtonEventHandler(Month_MouseLeftButtonDown), true);
                         monthCell.AddHandler(CalendarButton.MouseLeftButtonUpEvent, new MouseButtonEventHandler(Month_MouseLeftButtonUp), true);
                         monthCell.AddHandler(CalendarButton.MouseEnterEvent, new MouseEventHandler(Month_MouseEnter), true);
+                        monthCell.AddHandler(UIElement.PreviewKeyDownEvent, new RoutedEventHandler(CellOrMonth_PreviewKeyDown), true);
                         monthCell.Click += new RoutedEventHandler(Month_Clicked);
                         this._yearView.Children.Add(monthCell);
                         count++;
@@ -1118,12 +1124,18 @@ namespace Microsoft.Windows.Controls.Primitives
 
         private void AddMonthModeHighlight()
         {
-            DateTime hStart = this.Owner.CurrentDate;
-            DateTime hEnd = this.Owner.CurrentDate;
-
-            if (this.Owner.HoverStart.HasValue)
+            var owner = this.Owner;
+            if (owner == null)
             {
-                int daysToHighlight = DateTimeHelper.CompareDays(this.Owner.CurrentDate, this.Owner.HoverStart.Value);
+                return;
+            }
+
+            if (owner.HoverStart.HasValue && owner.HoverEnd.HasValue)
+            {
+                DateTime hStart = owner.HoverEnd.Value;
+                DateTime hEnd = owner.HoverEnd.Value;
+
+                int daysToHighlight = DateTimeHelper.CompareDays(owner.HoverEnd.Value, owner.HoverStart.Value);
                 if (daysToHighlight < 0)
                 {
                     hEnd = this.Owner.HoverStart.Value;

@@ -250,18 +250,15 @@ namespace System.Windows
                 // Hook up generated Storyboard's Completed event handler
                 dynamicTransition.Completed += delegate(object sender, EventArgs e)
                 {
-                    if ((transition.Storyboard == null || transition.ExplicitStoryboardCompleted) &&
-
-                        // If the element or control is removed from the tree, then the new
-                        // storyboards will not be able to resolve target names. Thus,
-                        // if the element or control is unloaded, don't start the new
-                        // storyboards.
-                        (element.IsLoaded && (control == null || control.IsLoaded)))
+                    if (transition.Storyboard == null || transition.ExplicitStoryboardCompleted) 
                     {
-                        group.StartNewThenStopOld(element, state.Storyboard);
-                    }
+                        if (ShouldRunStateStoryboard(control, element))
+                        {
+                            group.StartNewThenStopOld(element, state.Storyboard);
+                        }
 
-                    group.RaiseCurrentStateChanged(element, lastState, state, control);
+                        group.RaiseCurrentStateChanged(element, lastState, state, control);
+                    }
                     transition.DynamicStoryboardCompleted = true;
                 };
 
@@ -270,18 +267,14 @@ namespace System.Windows
                     EventHandler transitionCompleted = null;
                     transitionCompleted = new EventHandler(delegate(object sender, EventArgs e)
                     {
-                        if (transition.DynamicStoryboardCompleted &&
-
-                            // If the element or control is removed from the tree, then the new
-                            // storyboards will not be able to resolve target names. Thus,
-                            // if the element or control is unloaded, don't start the new
-                            // storyboards.
-                            (element.IsLoaded && (control == null || control.IsLoaded)))
+                        if (transition.DynamicStoryboardCompleted)
                         {
-                            group.StartNewThenStopOld(element, state.Storyboard);
+                            if (ShouldRunStateStoryboard(control, element))
+                            {
+                                group.StartNewThenStopOld(element, state.Storyboard);
+                            }
+                            group.RaiseCurrentStateChanged(element, lastState, state, control);
                         }
-
-                        group.RaiseCurrentStateChanged(element, lastState, state, control);
                         transition.Storyboard.Completed -= transitionCompleted;
                         transition.ExplicitStoryboardCompleted = true;
                     });
@@ -301,6 +294,41 @@ namespace System.Windows
             group.CurrentState = state;
 
             return true;
+        }
+
+        /// <summary>
+        ///   If the stateGroupsRoot or control is removed from the tree, then the new
+        ///   storyboards will not be able to resolve target names. Thus,
+        ///   if the stateGroupsRoot or control is not in the tree, don't start the new
+        ///   storyboards.
+        /// </summary> 
+        private static bool ShouldRunStateStoryboard(FrameworkElement control, FrameworkElement stateGroupsRoot)
+        {
+            bool controlInTree = true;
+            bool stateGroupsRootInTree = true;
+
+            // We cannot simply check control.IsLoaded because the control may not be in the visual tree
+            // even though IsLoaded is true.  Instead we will check that it can find a PresentationSource
+            // which would tell us it's in the visual tree.
+            if (control != null)
+            {
+                // If it's visible then it's in the visual tree, so we don't even have to look for a 
+                // PresentationSource
+                if (!control.IsVisible)
+                {
+                    controlInTree = (PresentationSource.FromVisual(control) != null);
+                }
+            }
+
+            if (stateGroupsRoot != null)
+            {
+                if (!stateGroupsRoot.IsVisible)
+                {
+                    stateGroupsRootInTree = (PresentationSource.FromVisual(stateGroupsRoot) != null);
+                }
+            }
+
+            return controlInTree && stateGroupsRootInTree;
         }
 
         protected void RaiseCurrentStateChanging(VisualStateGroup stateGroup, VisualState oldState, VisualState newState, Control control)
@@ -405,24 +433,10 @@ namespace System.Windows
             // Generate the "from" animations
             foreach (KeyValuePair<TimelineDataToken, Timeline> pair in currentAnimations)
             {
-                Timeline fromAnimation = GenerateFromAnimation(pair.Value);
+                Timeline fromAnimation = GenerateFromAnimation(root, pair.Value);
                 if (fromAnimation != null)
                 {
                     fromAnimation.Duration = dynamic.Duration;
-                    string targetName = Storyboard.GetTargetName(pair.Value);
-                    Storyboard.SetTargetName(fromAnimation, targetName);
-
-                    // If the targetName of the existing Animation is known, then look up the
-                    // target 
-                    DependencyObject target = String.IsNullOrEmpty(targetName) ?
-                                                null : root.FindName(targetName) as DependencyObject;
-                    if (target != null)
-                    {
-                        Storyboard.SetTarget(fromAnimation, target);
-                    }
-
-                    PropertyPath propertyName = Storyboard.GetTargetProperty(pair.Value);
-                    Storyboard.SetTargetProperty(fromAnimation, propertyName);
                     dynamic.Children.Add(fromAnimation);
                 }
             }
@@ -430,26 +444,31 @@ namespace System.Windows
             return dynamic;
         }
 
-        private static Timeline GenerateFromAnimation(Timeline timeline)
+        private static Timeline GenerateFromAnimation(FrameworkElement root, Timeline timeline)
         {
+            Timeline result = null;
+            
             if (timeline is ColorAnimation || timeline is ColorAnimationUsingKeyFrames)
             {
-                return new ColorAnimation();
+                result = new ColorAnimation();
+            }
+            else if (timeline is DoubleAnimation || timeline is DoubleAnimationUsingKeyFrames)
+            {
+                result = new DoubleAnimation();
+            }
+            else if (timeline is PointAnimation || timeline is PointAnimationUsingKeyFrames)
+            {
+                result = new PointAnimation();
             }
 
-            if (timeline is DoubleAnimation || timeline is DoubleAnimationUsingKeyFrames)
+            if (result != null)
             {
-                return new DoubleAnimation();
-            }
-
-            if (timeline is PointAnimation || timeline is PointAnimationUsingKeyFrames)
-            {
-                return new PointAnimation();
+                CopyStoryboardTargetProperties(root, timeline, result);
             }
 
             // All other animation types are ignored. We will not build transitions for them,
             // but they will end up being executed.
-            return null;
+            return result;
         }
 
         private static Timeline GenerateToAnimation(FrameworkElement root, Timeline timeline, bool isEntering)
@@ -485,21 +504,41 @@ namespace System.Windows
 
             if (result != null)
             {
-                string targetName = Storyboard.GetTargetName(timeline);
-                Storyboard.SetTargetName(result, targetName);
-                if (!String.IsNullOrEmpty(targetName))
-                {
-                    DependencyObject target = root.FindName(targetName) as DependencyObject;
-                    if (target != null)
-                    {
-                        Storyboard.SetTarget(result, target);
-                    }
-                }
-
-                Storyboard.SetTargetProperty(result, Storyboard.GetTargetProperty(timeline));
+                CopyStoryboardTargetProperties(root, timeline, result);
             }
 
             return result;
+        }
+
+        private static void CopyStoryboardTargetProperties(FrameworkElement root, Timeline source, Timeline destination)
+        {
+            if (source != null || destination != null)
+            {
+                // Target takes priority over 
+                string targetName = Storyboard.GetTargetName(source);
+                DependencyObject target = Storyboard.GetTarget(source);
+                PropertyPath path = Storyboard.GetTargetProperty(source);
+
+                if (target == null && !string.IsNullOrEmpty(targetName))
+                {
+                    target = root.FindName(targetName) as DependencyObject;
+                }
+
+                if (targetName != null)
+                {
+                    Storyboard.SetTargetName(destination, targetName);
+                }
+
+                if (target != null)
+                {
+                    Storyboard.SetTarget(destination, target);
+                }
+
+                if (path != null)
+                {
+                    Storyboard.SetTargetProperty(destination, path);
+                }
+            }
         }
 
         /// <summary>
@@ -709,13 +748,15 @@ namespace System.Windows
         {
             public TimelineDataToken(Timeline timeline)
             {
+                _target = Storyboard.GetTarget(timeline);
                 _targetName = Storyboard.GetTargetName(timeline);
                 _targetProperty = Storyboard.GetTargetProperty(timeline);
             }
 
             public bool Equals(TimelineDataToken other)
             {
-                if ((other._targetName == _targetName) && 
+                if ((other._target == _target) &&
+                    (other._targetName == _targetName) && 
                     (other._targetProperty.Path == _targetProperty.Path) &&
                     (other._targetProperty.PathParameters.Count == _targetProperty.PathParameters.Count))
                 {
@@ -738,9 +779,15 @@ namespace System.Windows
 
             public override int GetHashCode()
             {
-                return _targetName.GetHashCode() ^ _targetProperty.Path.GetHashCode();
+                int targetHash = _target != null ? _target.GetHashCode() : 0;
+                int targetNameHash = _targetName != null ? _targetName.GetHashCode() : 0;
+                int targetPropertyHash = _targetProperty != null ? _targetProperty.GetHashCode() : 0;
+
+                return targetHash ^ targetNameHash ^ targetPropertyHash;
+
             }
 
+            private DependencyObject _target;
             private string _targetName;
             private PropertyPath _targetProperty;
         }

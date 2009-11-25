@@ -287,7 +287,7 @@ namespace Microsoft.Windows.Controls.Primitives
         /// <param name="sender"></param>
         private DataGridColumnHeader HeaderToResize(object gripper)
         {
-            return (gripper == _rightGripper) ? this : PreviousHeader;
+            return (gripper == _rightGripper) ? this : PreviousVisibleHeader;
         }
 
         // Save the original widths before header resize
@@ -459,6 +459,10 @@ namespace Microsoft.Windows.Controls.Primitives
             {
                 OnCanUserResizeChanged();
             }
+            else if (e.Property == DataGridColumn.VisibilityProperty)
+            {
+                OnColumnVisibilityChanged(e);
+            }
         }
 
         private void OnCanUserResizeColumnsChanged()
@@ -477,12 +481,7 @@ namespace Microsoft.Windows.Controls.Primitives
             DataGrid dataGrid = Column.DataGridOwner;
             if (dataGrid != null)
             {
-                DataGridColumnHeader nextColumnHeader = dataGrid.ColumnHeaderFromDisplayIndex(DisplayIndex + 1);
-                if (nextColumnHeader != null)
-                {
-                    nextColumnHeader.SetLeftGripperVisibility(Column.CanUserResize);
-                }
-
+                SetNextHeaderLeftGripperVisibility(Column.CanUserResize);
                 SetRightGripperVisibility();
             }
         }
@@ -494,8 +493,17 @@ namespace Microsoft.Windows.Controls.Primitives
                 return;
             }
 
-            int displayIndex = DisplayIndex;
-            bool canPrevColumnResize = (displayIndex > 0 ? Column.DataGridOwner.ColumnFromDisplayIndex(displayIndex - 1).CanUserResize : false);
+            DataGrid dataGridOwner = Column.DataGridOwner;
+            bool canPrevColumnResize = false;
+            for (int index = DisplayIndex - 1; index >= 0; index--)
+            {
+                DataGridColumn column = dataGridOwner.ColumnFromDisplayIndex(index);
+                if (column.IsVisible)
+                {
+                    canPrevColumnResize = column.CanUserResize;
+                    break;
+                }
+            }
             SetLeftGripperVisibility(canPrevColumnResize);
         }
 
@@ -532,6 +540,59 @@ namespace Microsoft.Windows.Controls.Primitives
             else
             {
                 _rightGripper.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private void SetNextHeaderLeftGripperVisibility(bool canUserResize)
+        {
+            DataGrid dataGrid = Column.DataGridOwner;
+            int columnCount = dataGrid.Columns.Count;
+            for (int index = DisplayIndex + 1; index < columnCount; index++)
+            {
+                if (dataGrid.ColumnFromDisplayIndex(index).IsVisible)
+                {
+                    DataGridColumnHeader nextHeader = dataGrid.ColumnHeaderFromDisplayIndex(index);
+                    if (nextHeader != null)
+                    {
+                        nextHeader.SetLeftGripperVisibility(canUserResize);
+                    }
+                    break;
+                }
+            }
+        }
+
+        private void OnColumnVisibilityChanged(DependencyPropertyChangedEventArgs e)
+        {
+            Debug.Assert(Column != null, "column can't be null if we got a notification for this property change");
+            DataGrid dataGrid = Column.DataGridOwner;
+            if (dataGrid != null)
+            {
+                bool oldIsVisible = (((Visibility)e.OldValue) == Visibility.Visible);
+                bool newIsVisible = (((Visibility)e.NewValue) == Visibility.Visible);
+
+                if (oldIsVisible != newIsVisible)
+                {
+                    if (newIsVisible)
+                    {
+                        SetLeftGripperVisibility();
+                        SetRightGripperVisibility();
+                        SetNextHeaderLeftGripperVisibility(Column.CanUserResize);
+                    }
+                    else
+                    {
+                        bool canPrevColumnResize = false;
+                        for (int index = DisplayIndex - 1; index >= 0; index--)
+                        {
+                            DataGridColumn column = dataGrid.ColumnFromDisplayIndex(index);
+                            if (column.IsVisible)
+                            {
+                                canPrevColumnResize = column.CanUserResize;
+                                break;
+                            }
+                        }
+                        SetNextHeaderLeftGripperVisibility(canPrevColumnResize);
+                    }
+                }
             }
         }
 
@@ -600,9 +661,23 @@ namespace Microsoft.Windows.Controls.Primitives
         /// </summary>
         private static object OnCoerceStyle(DependencyObject d, object baseValue)
         {
-            var columnHeader = d as DataGridColumnHeader;
-            var column = columnHeader.Column;
-            var dataGrid = column != null ? column.DataGridOwner : null;
+            var columnHeader = (DataGridColumnHeader)d;
+            DataGridColumn column = columnHeader.Column;
+            DataGrid dataGrid = null;
+
+            // Propagate style changes to any filler column headers.
+            if (column == null)
+            {
+                DataGridColumnHeadersPresenter presenter = columnHeader.TemplatedParent as DataGridColumnHeadersPresenter;
+                if (presenter != null)
+                {
+                    dataGrid = presenter.ParentDataGrid;
+                }
+            }
+            else
+            {
+                dataGrid = column.DataGridOwner;
+            }
 
             return DataGridHelper.GetCoercedTransferPropertyValue(
                 columnHeader, 
@@ -696,11 +771,26 @@ namespace Microsoft.Windows.Controls.Primitives
         /// </summary>
         private static object OnCoerceHeight(DependencyObject d, object baseValue)
         {
-            var header = d as DataGridColumnHeader;
-            DataGrid dataGrid = header.Column != null ? header.Column.DataGridOwner : null;
+            var columnHeader = (DataGridColumnHeader)d;
+            DataGridColumn column = columnHeader.Column;
+            DataGrid dataGrid = null;
+
+            // Propagate style changes to any filler column headers.
+            if (column == null)
+            {
+                DataGridColumnHeadersPresenter presenter = columnHeader.TemplatedParent as DataGridColumnHeadersPresenter;
+                if (presenter != null)
+                {
+                    dataGrid = presenter.ParentDataGrid;
+                }
+            }
+            else
+            {
+                dataGrid = column.DataGridOwner;
+            }
 
             return DataGridHelper.GetCoercedTransferPropertyValue(
-                header, 
+                columnHeader, 
                 baseValue, 
                 HeightProperty,
                 dataGrid, 
@@ -919,15 +1009,25 @@ namespace Microsoft.Windows.Controls.Primitives
         /// <summary>
         ///     Used by the resize code -- this is the header that the left gripper should be resizing.
         /// </summary>
-        private DataGridColumnHeader PreviousHeader
+        private DataGridColumnHeader PreviousVisibleHeader
         {
             get
             {
                 // TODO: we need to be able to find the corner header too. 
                 DataGridColumn column = Column;
-                if (column != null && column.DataGridOwner != null)
+                if (column != null)
                 {
-                    return column.DataGridOwner.ColumnHeaderFromDisplayIndex(column.DisplayIndex - 1);
+                    DataGrid dataGridOwner = column.DataGridOwner;
+                    if (dataGridOwner != null)
+                    {
+                        for (int index = DisplayIndex - 1; index >= 0; index--)
+                        {
+                            if (dataGridOwner.ColumnFromDisplayIndex(index).IsVisible)
+                            {
+                                return dataGridOwner.ColumnHeaderFromDisplayIndex(index);
+                            }
+                        }
+                    }
                 }
 
                 return null;

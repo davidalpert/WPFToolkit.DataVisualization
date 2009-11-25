@@ -25,8 +25,15 @@ namespace Microsoft.Windows.Controls.Primitives
     ///     it needs to be able to find the ScrollViewer -- this is done by setting the 
     ///     SourceScrollViewerName property.
     /// </summary>
+    [TemplatePart(Name = "PART_FillerColumnHeader", Type = typeof(DataGridColumnHeader))]
     public class DataGridColumnHeadersPresenter : ItemsControl
     {
+        #region Constants
+
+        private const string ElementFillerColumnHeader = "PART_FillerColumnHeader";
+
+        #endregion
+      
         static DataGridColumnHeadersPresenter()
         {
             Type ownerType = typeof(DataGridColumnHeadersPresenter);
@@ -63,6 +70,13 @@ namespace Microsoft.Windows.Controls.Primitives
                 ItemsSource = new ColumnHeaderCollection(grid.Columns);
                 grid.ColumnHeadersPresenter = this;
                 DataGridHelper.TransferProperty(this, VirtualizingStackPanel.IsVirtualizingProperty);
+
+                DataGridColumnHeader fillerColumnHeader = GetTemplateChild(ElementFillerColumnHeader) as DataGridColumnHeader;
+                if (fillerColumnHeader != null)
+                {
+                    DataGridHelper.TransferProperty(fillerColumnHeader, DataGridColumnHeader.StyleProperty);
+                    DataGridHelper.TransferProperty(fillerColumnHeader, DataGridColumnHeader.HeightProperty);
+                }
             }
             else
             {
@@ -328,6 +342,17 @@ namespace Microsoft.Windows.Controls.Primitives
                     {
                         tracker.Container.NotifyPropertyChanged(d, e);
                         tracker = tracker.Next;
+                    }
+
+                    // Handle Style & Height change notification for PART_FillerColumnHeader.
+                    if (d is DataGrid &&
+                        (e.Property == DataGrid.ColumnHeaderStyleProperty || e.Property == DataGrid.ColumnHeaderHeightProperty))
+                    {
+                        DataGridColumnHeader fillerColumnHeader = GetTemplateChild(ElementFillerColumnHeader) as DataGridColumnHeader;
+                        if (fillerColumnHeader != null)
+                        {
+                            fillerColumnHeader.NotifyPropertyChanged(d, e);
+                        }
                     }
                 }
             }

@@ -31,11 +31,6 @@ namespace Microsoft.Windows.Controls
                 new FrameworkPropertyMetadata(new PropertyChangedCallback(OnTemplateColumnSortMemberPathChanged)));
         }
 
-        public DataGridTemplateColumn()
-        {
-            CoerceValue(CanUserSortProperty);
-        }
-
         #endregion
 
         #region Auto Sort

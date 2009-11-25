@@ -38,6 +38,7 @@ namespace Microsoft.Windows.Controls
 
         #region Data
         private DateTime? _hoverStart;
+        private DateTime? _hoverEnd;
         private bool _isShiftPressed;
         private DateTime? _currentDate;
         private CalendarItem _monthControl;
@@ -82,9 +83,10 @@ namespace Microsoft.Windows.Controls
         static Calendar()
         {
             DefaultStyleKeyProperty.OverrideMetadata(typeof(Calendar), new FrameworkPropertyMetadata(typeof(Calendar)));
-            FocusableProperty.OverrideMetadata(typeof(Calendar), new FrameworkPropertyMetadata(false));
             KeyboardNavigation.TabNavigationProperty.OverrideMetadata(typeof(Calendar), new FrameworkPropertyMetadata(KeyboardNavigationMode.Once));
             KeyboardNavigation.DirectionalNavigationProperty.OverrideMetadata(typeof(Calendar), new FrameworkPropertyMetadata(KeyboardNavigationMode.Contained));
+
+            EventManager.RegisterClassHandler(typeof(Calendar), UIElement.GotFocusEvent, new RoutedEventHandler(OnGotFocus));
         }
 
         /// <summary>
@@ -394,7 +396,7 @@ namespace Microsoft.Windows.Controls
                         if (oldMode == CalendarMode.Year || oldMode == CalendarMode.Decade)
                         {
                             // Cancel highlight when switching to month display mode
-                            c.HoverStart = null;
+                            c.HoverStart = c.HoverEnd = null;
                             c.CurrentDate = c.DisplayDate;
                         }
 
@@ -541,7 +543,7 @@ namespace Microsoft.Windows.Controls
                 {
                     if (!addedDate.HasValue)
                     {
-                        c.SelectedDates.Clear();
+                        c.SelectedDates.ClearInternal(true /*fireChangeNotification*/);
                     }
                     else
                     {
@@ -617,8 +619,8 @@ namespace Microsoft.Windows.Controls
             Calendar c = d as Calendar;
             Debug.Assert(c != null);
 
-            c.HoverStart = null;
-            c.SelectedDates.Clear();
+            c.HoverStart = c.HoverEnd = null;
+            c.SelectedDates.ClearInternal(true /*fireChangeNotification*/);
             c.OnSelectionModeChanged(EventArgs.Empty);
         }
 
@@ -630,7 +632,7 @@ namespace Microsoft.Windows.Controls
 
         internal event MouseButtonEventHandler DayButtonMouseUp;
 
-        internal event RoutedEventHandler DayKeyDown;
+        internal event RoutedEventHandler DayOrMonthPreviewKeyDown;
 
         #endregion Internal Events
 
@@ -684,6 +686,19 @@ namespace Microsoft.Windows.Controls
             set 
             { 
                 _hoverStart = value; 
+            }
+        }
+
+        internal DateTime? HoverEnd
+        {
+            get
+            {
+                return this.SelectionMode == CalendarSelectionMode.None ? null : _hoverEnd;
+            }
+
+            set
+            {
+                _hoverEnd = value;
             }
         }
 
@@ -859,9 +874,9 @@ namespace Microsoft.Windows.Controls
             }
         }
 
-        internal void OnDayKeyDown(RoutedEventArgs e)
+        internal void OnDayOrMonthPreviewKeyDown(RoutedEventArgs e)
         {
-            RoutedEventHandler handler = this.DayKeyDown;
+            RoutedEventHandler handler = this.DayOrMonthPreviewKeyDown;
             if (null != handler)
             {
                 handler(this, e);
@@ -975,7 +990,7 @@ namespace Microsoft.Windows.Controls
                 {
                     case CalendarMode.Month:
                     {
-                        this.DisplayDate = d;
+                        this.DisplayDate = DateTimeHelper.DiscardDayTime(d);
                         this.CurrentDate = d;
                         UpdateCellItems();
 
@@ -1005,8 +1020,6 @@ namespace Microsoft.Windows.Controls
             DateTime? nextDate = GetDateOffset(this.DisplayDate, 1, this.DisplayMode);
             if (nextDate.HasValue)
             {
-                // Cancel highlight
-                this.HoverStart = null;
                 MoveDisplayTo(DateTimeHelper.DiscardDayTime(nextDate.Value));
             }
         }
@@ -1016,8 +1029,6 @@ namespace Microsoft.Windows.Controls
             DateTime? nextDate = GetDateOffset(this.DisplayDate, -1, this.DisplayMode);
             if (nextDate.HasValue)
             {
-                // Cancel highlight
-                this.HoverStart = null;
                 MoveDisplayTo(DateTimeHelper.DiscardDayTime(nextDate.Value));
             }
         }
@@ -1192,11 +1203,36 @@ namespace Microsoft.Windows.Controls
             }
         }
 
-        private void FocusDate(DateTime date)
+        internal void FocusDate(DateTime date)
         {
             if (MonthControl != null)
             {
                 MonthControl.FocusDate(date);
+            }
+        }
+
+        /// <summary>
+        ///     Called when this element gets focus.
+        /// </summary>
+        private static void OnGotFocus(object sender, RoutedEventArgs e)
+        {
+            // When Calendar gets focus move it to the DisplayDate
+            var c = (Calendar)sender;
+            if (!e.Handled && e.OriginalSource == c)
+            {
+                // This check is for the case where the DisplayDate is the first of the month
+                // and the SelectedDate is in the middle of the month.  If you tab into the Calendar
+                // the focus should go to the SelectedDate, not the DisplayDate.
+                if (c.SelectedDate.HasValue && DateTimeHelper.CompareYearMonth(c.SelectedDate.Value, c.DisplayDateInternal) == 0)
+                {
+                    c.FocusDate(c.SelectedDate.Value);
+                }
+                else
+                {
+                    c.FocusDate(c.DisplayDate);
+                }
+
+                e.Handled = true;
             }
         }
 
@@ -1545,7 +1581,7 @@ namespace Microsoft.Windows.Controls
                         this._isShiftPressed = true;
                         if (!this.HoverStart.HasValue)
                         {
-                            this.HoverStart = this.CurrentDate;
+                            this.HoverStart = this.HoverEnd = this.CurrentDate;
                         }
                         
                         // If we hit a BlackOutDay with keyboard we do not update the HoverEnd
@@ -1563,13 +1599,14 @@ namespace Microsoft.Windows.Controls
                         if (!this.BlackoutDates.ContainsAny(range))
                         {
                             this._currentDate = lastSelectedDate;
+                            this.HoverEnd = lastSelectedDate;
                         }
 
                         OnDayClick(this.CurrentDate);
                     }
                     else
                     {
-                        this.HoverStart = this.CurrentDate = lastSelectedDate.Value;
+                        this.HoverStart = this.HoverEnd = this.CurrentDate = lastSelectedDate.Value;
                         AddKeyboardSelection();
                         OnDayClick(lastSelectedDate.Value);                        
                     }                    
@@ -1578,6 +1615,7 @@ namespace Microsoft.Windows.Controls
                 {
                     // ON CLEAR 
                     this.CurrentDate = lastSelectedDate.Value;
+                    this.HoverStart = this.HoverEnd = null;
                     if (this.SelectedDates.Count > 0)
                     {
                         this.SelectedDates[0] = lastSelectedDate.Value;
@@ -1600,7 +1638,7 @@ namespace Microsoft.Windows.Controls
             {
                 AddKeyboardSelection();
                 this._isShiftPressed = false;
-                this.HoverStart = null;
+                this.HoverStart = this.HoverEnd = null;
             }
         }
 

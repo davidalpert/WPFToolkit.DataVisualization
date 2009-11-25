@@ -855,6 +855,18 @@ namespace Microsoft.Windows.Controls
                 {
                     CoerceValue(IsFrozenProperty);
                 }
+                else if (e.Property == DataGrid.CanUserSortColumnsProperty)
+                {
+                    DataGridHelper.TransferProperty(this, CanUserSortProperty);
+                }
+                else if (e.Property == DataGrid.CanUserResizeColumnsProperty || e.Property == CanUserResizeProperty)
+                {
+                    DataGridHelper.TransferProperty(this, CanUserResizeProperty);
+                }
+                else if (e.Property == DataGrid.CanUserReorderColumnsProperty || e.Property == CanUserReorderProperty)
+                {
+                    DataGridHelper.TransferProperty(this, CanUserReorderProperty);
+                }
                 
                 if (e.Property == WidthProperty || e.Property == MinWidthProperty || e.Property == MaxWidthProperty)
                 {
@@ -920,6 +932,9 @@ namespace Microsoft.Windows.Controls
             DataGridHelper.TransferProperty(this, CellStyleProperty);
             DataGridHelper.TransferProperty(this, IsReadOnlyProperty);
             DataGridHelper.TransferProperty(this, DragIndicatorStyleProperty);
+            DataGridHelper.TransferProperty(this, CanUserSortProperty);
+            DataGridHelper.TransferProperty(this, CanUserReorderProperty);
+            DataGridHelper.TransferProperty(this, CanUserResizeProperty);
         }
 
         /// <summary>
@@ -1024,7 +1039,7 @@ namespace Microsoft.Windows.Controls
                 "CanUserSort",
                 typeof(bool),
                 typeof(DataGridColumn),
-                new FrameworkPropertyMetadata(true, new PropertyChangedCallback(OnNotifySortPropertyChanged), new CoerceValueCallback(OnCoerceCanUserSort)));
+                new FrameworkPropertyMetadata(true, new PropertyChangedCallback(OnCanUserSortPropertyChanged), new CoerceValueCallback(OnCoerceCanUserSort)));
 
         /// <summary>
         /// The property which determines whether the datagrid can be sorted upon this column or not
@@ -1036,7 +1051,55 @@ namespace Microsoft.Windows.Controls
         }
 
         /// <summary>
-        /// Dependency property for SrtDirection
+        /// The Coercion callback for CanUserSort property. 
+        /// </summary>
+        /// <param name="d"></param>
+        /// <param name="baseValue"></param>
+        /// <returns></returns>
+        internal static object OnCoerceCanUserSort(DependencyObject d, object baseValue)
+        {
+            var column = d as DataGridColumn;
+            
+            ValueSource propertySource = DependencyPropertyHelper.GetValueSource(column, CanUserSortProperty);
+            bool basePropertyHasModifiers = propertySource.IsAnimated || propertySource.IsCoerced || propertySource.IsExpression;
+
+            if (column.DataGridOwner != null)
+            {
+                ValueSource parentValueSource = DependencyPropertyHelper.GetValueSource(column.DataGridOwner, DataGrid.CanUserSortColumnsProperty);
+                bool parentPropertyHasModifiers = parentValueSource.IsAnimated || parentValueSource.IsCoerced || parentValueSource.IsExpression; ;
+
+                if (parentValueSource.BaseValueSource == propertySource.BaseValueSource && !basePropertyHasModifiers && parentPropertyHasModifiers)
+                {
+                    return column.DataGridOwner.GetValue(DataGrid.CanUserSortColumnsProperty);
+                }
+            }
+
+            return DataGridHelper.GetCoercedTransferPropertyValue(
+                column,
+                baseValue,
+                CanUserSortProperty,
+                column.DataGridOwner,
+                DataGrid.CanUserSortColumnsProperty);
+        }
+
+        /// <summary>
+        /// Property changed callback for CanUserSort property
+        /// </summary>
+        /// <param name="d"></param>
+        /// <param name="e"></param>
+        private static void OnCanUserSortPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            // To prevent re-entrancy
+            if (!DataGridHelper.IsPropertyTransferEnabled(d, CanUserSortProperty))
+            {
+                // Coerce value from parent DataGrid
+                DataGridHelper.TransferProperty(d, CanUserSortProperty);
+            }
+            ((DataGridColumn)d).NotifyPropertyChanged(d, e, NotificationTarget.ColumnHeaders);
+        }
+
+        /// <summary>
+        /// Dependency property for SortDirection
         /// </summary>
         public static readonly DependencyProperty SortDirectionProperty =
             DependencyProperty.Register(
@@ -1055,30 +1118,7 @@ namespace Microsoft.Windows.Controls
         }
 
         /// <summary>
-        /// The Coercion callback for CanUserSort property. Checks if datagrid.Items can sort and
-        /// returns the value accordingly.
-        /// </summary>
-        /// <param name="d"></param>
-        /// <param name="baseValue"></param>
-        /// <returns></returns>
-        internal static object OnCoerceCanUserSort(DependencyObject d, object baseValue)
-        {
-            DataGridColumn column = (DataGridColumn)d;
-            DataGrid dataGrid = column.DataGridOwner;
-
-            if (dataGrid != null)
-            {
-                if (!dataGrid.Items.CanSort)
-                {
-                    return false;
-                }
-            }
-
-            return baseValue;
-        }
-
-        /// <summary>
-        /// Property changed callback for CanUserSort, SortMemberPath and SortDirection properties
+        /// Property changed callback for SortMemberPath and SortDirection properties
         /// </summary>
         /// <param name="d"></param>
         /// <param name="e"></param>
@@ -1270,7 +1310,7 @@ namespace Microsoft.Windows.Controls
         ///     The DependencyProperty that represents the CanUserReorder property.
         /// </summary>
         public static readonly DependencyProperty CanUserReorderProperty =
-            DependencyProperty.Register("CanUserReorder", typeof(bool), typeof(DataGridColumn), new FrameworkPropertyMetadata(true));
+            DependencyProperty.Register("CanUserReorder", typeof(bool), typeof(DataGridColumn), new FrameworkPropertyMetadata(true, new PropertyChangedCallback(OnNotifyColumnPropertyChanged), new CoerceValueCallback(OnCoerceCanUserReorder)));
 
         /// <summary>
         /// The property which determines if column header can be dragged or not
@@ -1279,6 +1319,17 @@ namespace Microsoft.Windows.Controls
         {
             get { return (bool)GetValue(CanUserReorderProperty); }
             set { SetValue(CanUserReorderProperty, value); }
+        }
+
+        private static object OnCoerceCanUserReorder(DependencyObject d, object baseValue)
+        {
+            var column = d as DataGridColumn;
+            return DataGridHelper.GetCoercedTransferPropertyValue(
+                column,
+                baseValue,
+                CanUserReorderProperty,
+                column.DataGridOwner,
+                DataGrid.CanUserReorderColumnsProperty);
         }
 
         /// <summary>
@@ -1434,7 +1485,7 @@ namespace Microsoft.Windows.Controls
         /// Dependency property for CanUserResize
         /// </summary>
         public static readonly DependencyProperty CanUserResizeProperty =
-            DependencyProperty.Register("CanUserResize", typeof(bool), typeof(DataGridColumn), new FrameworkPropertyMetadata(true, new PropertyChangedCallback(OnNotifyCanResizePropertyChanged)));
+            DependencyProperty.Register("CanUserResize", typeof(bool), typeof(DataGridColumn), new FrameworkPropertyMetadata(true, new PropertyChangedCallback(OnNotifyColumnHeaderPropertyChanged), new CoerceValueCallback(OnCoerceCanUserResize)));
 
         /// <summary>
         /// Property which indicates if an end user can resize the column or not
@@ -1445,15 +1496,17 @@ namespace Microsoft.Windows.Controls
             set { SetValue(CanUserResizeProperty, value); }
         }
 
-        /// <summary>
-        /// Property changed callback for CanUserResize property
-        /// </summary>
-        /// <param name="d"></param>
-        /// <param name="e"></param>
-        private static void OnNotifyCanResizePropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        private static object OnCoerceCanUserResize(DependencyObject d, object baseValue)
         {
-            ((DataGridColumn)d).NotifyPropertyChanged(d, e, NotificationTarget.ColumnHeaders);
+            var column = d as DataGridColumn;
+            return DataGridHelper.GetCoercedTransferPropertyValue(
+                column,
+                baseValue,
+                CanUserResizeProperty,
+                column.DataGridOwner,
+                DataGrid.CanUserResizeColumnsProperty);
         }
+
 
         #endregion
 
@@ -1494,7 +1547,7 @@ namespace Microsoft.Windows.Controls
             ((DataGridColumn)d).NotifyPropertyChanged(
                 d, 
                 eventArgs, 
-                NotificationTarget.CellsPresenter | NotificationTarget.ColumnHeadersPresenter | NotificationTarget.ColumnCollection);
+                NotificationTarget.CellsPresenter | NotificationTarget.ColumnHeadersPresenter | NotificationTarget.ColumnCollection | NotificationTarget.ColumnHeaders);
         }
 
         /// <summary>

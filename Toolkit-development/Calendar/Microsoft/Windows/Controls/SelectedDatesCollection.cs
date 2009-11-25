@@ -140,28 +140,9 @@ namespace Microsoft.Windows.Controls
                 throw new NotSupportedException(SR.Get(SRID.CalendarCollection_MultiThreadedCollectionChangeNotSupported));
             }
 
-            if (this.Count > 0)
-            {
-                Collection<DateTime> addedItems = new Collection<DateTime>();
-                Collection<DateTime> removedItems = new Collection<DateTime>();
-
-                foreach (DateTime item in this)
-                {
-                    removedItems.Add(item);
-                }
-
-                base.ClearItems();
-                ClearMinMax();
-
-                this._owner.SelectedDate = null;
-
-                if (removedItems.Count > 0)
-                {
-                    RaiseSelectionChanged(removedItems, addedItems);
-                }
-
-                this._owner.UpdateCellItems();
-            }
+            // Turn off highlight
+            this._owner.HoverStart = null;
+            ClearInternal(true /*fireChangeNotification*/);
         }
 
         /// <summary>
@@ -365,14 +346,40 @@ namespace Microsoft.Windows.Controls
 
         internal void ClearInternal()
         {
-            foreach (DateTime item in this)
-            {
-                this._removedItems.Add(item);
-            }
-
-            base.ClearItems();
-            ClearMinMax();
+            ClearInternal(false /*fireChangeNotification*/);
         }
+
+        internal void ClearInternal(bool fireChangeNotification)
+        {
+            if (this.Count > 0)
+            {
+                foreach (DateTime item in this)
+                {
+                    _removedItems.Add(item);
+                }
+
+                base.ClearItems();
+                ClearMinMax();
+
+                if (fireChangeNotification)
+                {
+                    if (this._owner.SelectedDate != null)
+                    {
+                        this._owner.SelectedDate = null;
+                    }
+
+                    if (_removedItems.Count > 0)
+                    {
+                        Collection<DateTime> addedItems = new Collection<DateTime>();
+                        RaiseSelectionChanged(_removedItems, addedItems);
+                        _removedItems.Clear();
+                    }
+
+                    this._owner.UpdateCellItems();
+                }
+            }
+        }
+
 
         internal void Toggle(DateTime date)
         {

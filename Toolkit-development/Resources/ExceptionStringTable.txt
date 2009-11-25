@@ -6,17 +6,6 @@
 ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-; DataGrid Selection Commands
-DataGrid_SelectAllCommandText=Select All
-DataGrid_SelectAllKey=Ctrl+A
-DataGrid_SelectAllKeyDisplayString=Ctrl+A
-
-; DataGrid Editing Commands
-DataGrid_BeginEditCommandText=Begin Edit
-DataGrid_CommitEditCommandText=Commit Edit
-DataGrid_CancelEditCommandText=Cancel Edit
-DataGrid_DeleteCommandText=Delete
-
 ; DataGrid Automation Strings
 DataGridCellItemAutomationPeer_NameCoreFormat=Item: {0}, Column Display Index: {1}
 
@@ -29,7 +18,7 @@ Calendar_PreviousButtonName=Previous button
 DatePickerAutomationPeer_LocalizedControlType=date picker
 DatePickerTextBox_DefaultWatermarkText=<Enter text here>
 DatePicker_DropDownButtonName=Show Calendar
-DatePicker_WatermarkText=Show Calendar
+DatePicker_WatermarkText=Select a date
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

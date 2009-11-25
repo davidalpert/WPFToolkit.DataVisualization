@@ -235,7 +235,7 @@ namespace Microsoft.Windows.Controls
         ///     The DependencyProperty for the DetailsTemplate property.
         /// </summary>
         public static readonly DependencyProperty DetailsTemplateProperty =
-            DependencyProperty.Register("DetailsTemplate", typeof(DataTemplate), typeof(DataGridRow), new FrameworkPropertyMetadata(null, OnNotifyRowAndDetailsPropertyChanged, OnCoerceDetailsTemplate));
+            DependencyProperty.Register("DetailsTemplate", typeof(DataTemplate), typeof(DataGridRow), new FrameworkPropertyMetadata(null, OnNotifyDetailsTemplatePropertyChanged, OnCoerceDetailsTemplate));
 
         /// <summary>
         ///     The object representing the Row Details template selector.  
@@ -250,7 +250,7 @@ namespace Microsoft.Windows.Controls
         ///     The DependencyProperty for the DetailsTemplateSelector property.
         /// </summary>
         public static readonly DependencyProperty DetailsTemplateSelectorProperty =
-            DependencyProperty.Register("DetailsTemplateSelector", typeof(DataTemplateSelector), typeof(DataGridRow), new FrameworkPropertyMetadata(null, OnNotifyRowAndDetailsPropertyChanged, OnCoerceDetailsTemplateSelector));
+            DependencyProperty.Register("DetailsTemplateSelector", typeof(DataTemplateSelector), typeof(DataGridRow), new FrameworkPropertyMetadata(null, OnNotifyDetailsTemplatePropertyChanged, OnCoerceDetailsTemplateSelector));
 
         /// <summary>
         ///     The Visibility of the Details presenter
@@ -267,23 +267,16 @@ namespace Microsoft.Windows.Controls
         public static readonly DependencyProperty DetailsVisibilityProperty =
             DependencyProperty.Register("DetailsVisibility", typeof(Visibility), typeof(DataGridRow), new FrameworkPropertyMetadata(Visibility.Collapsed, OnNotifyDetailsVisibilityChanged, OnCoerceDetailsVisibility));
 
-        internal enum RowDetailsEventStatus : byte
-        {
-            Disabled, // LoadingRowDetails should not be fired in response to changes to DetailsVisibilty.
-            Pending,  // LoadingRowDetails can be called if the row is loaded or if DetailsVisibilty becomes visible.
-            Loaded,   // LoadingRowDetails has been called and UnloadingRowDetails can be called.
-        }
-
-        internal RowDetailsEventStatus DetailsEventStatus
+        internal bool DetailsLoaded
         {
             get
             {
-                return _detailsEventStatus;
+                return _detailsLoaded;
             }
 
             set
             {
-                _detailsEventStatus = value;
+                _detailsLoaded = value;
             }
         }
 
@@ -640,9 +633,26 @@ namespace Microsoft.Windows.Controls
             (d as DataGridRow).NotifyPropertyChanged(d, e, NotificationTarget.Rows | NotificationTarget.RowHeaders);
         }
 
-        private static void OnNotifyRowAndDetailsPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        private static void OnNotifyDetailsTemplatePropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
-            (d as DataGridRow).NotifyPropertyChanged(d, e, NotificationTarget.Rows | NotificationTarget.DetailsPresenter);
+            DataGridRow row = (DataGridRow)d;
+            row.NotifyPropertyChanged(row, e, NotificationTarget.Rows | NotificationTarget.DetailsPresenter);
+
+            // It only makes sense to fire UnloadingRowDetails if the row details are already loaded. The same is true for LoadingRowDetails,
+            // since making row details visible will take care of firing LoadingRowDetails.
+            if (row.DetailsLoaded &&
+                d.GetValue(e.Property) == e.NewValue)
+            {
+                if (row.DataGridOwner != null)
+                {
+                    row.DataGridOwner.OnUnloadingRowDetailsWrapper(row);
+                }
+                if (e.NewValue != null)
+                {
+                    // Invoke LoadingRowDetails, but only after the details template is expanded (so DetailsElement will be available).
+                    Dispatcher.CurrentDispatcher.BeginInvoke(new DispatcherOperationCallback(DataGrid.DelayedOnLoadingRowDetails), DispatcherPriority.Loaded, row);
+                }
+            }
         }
 
         private static void OnNotifyDetailsVisibilityChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -1166,6 +1176,11 @@ namespace Microsoft.Windows.Controls
         #endregion
 
         #region Data
+        
+        // Tracks whether row details have been displayed.
+        //      true - row details template has been loaded and has rendered at least once
+        //      false - row details template has either is unset, or has never been asked to render
+        internal bool _detailsLoaded;
 
         private DataGrid _owner;
         private DataGridCellsPresenter _cellsPresenter;
@@ -1173,7 +1188,6 @@ namespace Microsoft.Windows.Controls
         private DataGridRowHeader _rowHeader;
         private ContainerTracking<DataGridRow> _tracker;
         private double _cellsPresenterResizeHeight;
-        private RowDetailsEventStatus _detailsEventStatus;
 
         #endregion
     }
