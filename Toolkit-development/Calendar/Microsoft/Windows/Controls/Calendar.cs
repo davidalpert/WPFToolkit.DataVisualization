@@ -21,7 +21,7 @@ namespace Microsoft.Windows.Controls
     /// </summary>
     [TemplatePart(Name = Calendar.ElementRoot, Type = typeof(Panel))]
     [TemplatePart(Name = Calendar.ElementMonth, Type = typeof(CalendarItem))]
-    public partial class Calendar : Control
+    public class Calendar : Control
     {
         #region Constants
 
@@ -87,6 +87,7 @@ namespace Microsoft.Windows.Controls
             KeyboardNavigation.DirectionalNavigationProperty.OverrideMetadata(typeof(Calendar), new FrameworkPropertyMetadata(KeyboardNavigationMode.Contained));
 
             EventManager.RegisterClassHandler(typeof(Calendar), UIElement.GotFocusEvent, new RoutedEventHandler(OnGotFocus));
+            LanguageProperty.OverrideMetadata(typeof(Calendar), new FrameworkPropertyMetadata(new PropertyChangedCallback(OnLanguageChanged)));
         }
 
         /// <summary>
@@ -96,7 +97,6 @@ namespace Microsoft.Windows.Controls
         {
             this._blackoutDates = new CalendarBlackoutDatesCollection(this);
             this._selectedDates = new SelectedDatesCollection(this);
-            this.FirstDayOfWeek = DateTimeHelper.GetCurrentDateFormat().FirstDayOfWeek;
             this.DisplayDate = DateTime.Today;
         }
 
@@ -445,7 +445,8 @@ namespace Microsoft.Windows.Controls
             "FirstDayOfWeek",
             typeof(DayOfWeek),
             typeof(Calendar),
-            new FrameworkPropertyMetadata(OnFirstDayOfWeekChanged),
+            new FrameworkPropertyMetadata(DateTimeHelper.GetCurrentDateFormat().FirstDayOfWeek,
+                                OnFirstDayOfWeekChanged),
             new ValidateValueCallback(IsValidFirstDayOfWeek));
 
         /// <summary>
@@ -500,6 +501,18 @@ namespace Microsoft.Windows.Controls
         }
 
         #endregion IsTodayHighlighted
+        
+        #region Language
+        private static void OnLanguageChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            Calendar c = d as Calendar;
+            if (DependencyPropertyHelper.GetValueSource(d, Calendar.FirstDayOfWeekProperty).BaseValueSource == BaseValueSource.Default)
+            {
+                c.CoerceValue(FirstDayOfWeekProperty);
+                c.UpdateCellItems();
+            }
+        }
+        #endregion
 
         #region SelectedDate
 
@@ -727,6 +740,13 @@ namespace Microsoft.Windows.Controls
 
         #region Private Properties
 
+        private bool IsRightToLeft
+        {
+            get 
+            {
+                return FlowDirection == FlowDirection.RightToLeft;
+            }
+        }
         #endregion Private Properties
 
         #region Public Methods
@@ -763,7 +783,7 @@ namespace Microsoft.Windows.Controls
         {
             if (this.SelectedDate != null)
             {
-                return this.SelectedDate.Value.ToString(DateTimeHelper.GetCurrentDateFormat());
+                return this.SelectedDate.Value.ToString(DateTimeHelper.GetDateFormat(DateTimeHelper.GetCulture(this)));
             }
             else
             {
@@ -1321,7 +1341,7 @@ namespace Microsoft.Windows.Controls
                 {
                     if (!ctrl || shift)
                     {
-                        DateTime? selectedDate = DateTimeHelper.AddDays(this.CurrentDate, COLS);
+                        DateTime? selectedDate = this._blackoutDates.GetNonBlackoutDate(DateTimeHelper.AddDays(this.CurrentDate, COLS), 1);
                         ProcessSelection(shift, selectedDate);
                     }
 
@@ -1457,25 +1477,26 @@ namespace Microsoft.Windows.Controls
 
         private void ProcessLeftKey(bool shift)
         {
+            int moveAmmount = (!this.IsRightToLeft) ? -1 : 1;
             switch (this.DisplayMode)
             {
                 case CalendarMode.Month:
                 {
-                    DateTime? selectedDate = DateTimeHelper.AddDays(this.CurrentDate, -1);
+                    DateTime? selectedDate = this._blackoutDates.GetNonBlackoutDate(DateTimeHelper.AddDays(this.CurrentDate, moveAmmount), moveAmmount);
                     ProcessSelection(shift, selectedDate);
                     break;
                 }
 
                 case CalendarMode.Year:
                 {
-                    DateTime? selectedMonth = DateTimeHelper.AddMonths(this.DisplayDate, -1);
+                    DateTime? selectedMonth = DateTimeHelper.AddMonths(this.DisplayDate, moveAmmount);
                     OnSelectedMonthChanged(selectedMonth);
                     break;
                 }
 
                 case CalendarMode.Decade:
                 {
-                    DateTime? selectedYear = DateTimeHelper.AddYears(this.DisplayDate, -1);
+                    DateTime? selectedYear = DateTimeHelper.AddYears(this.DisplayDate, moveAmmount);
                     OnSelectedYearChanged(selectedYear);
                     break;
                 }
@@ -1488,7 +1509,7 @@ namespace Microsoft.Windows.Controls
             {
                 case CalendarMode.Month:
                 {
-                    DateTime? selectedDate = DateTimeHelper.AddMonths(this.CurrentDate, 1);
+                    DateTime? selectedDate = this._blackoutDates.GetNonBlackoutDate(DateTimeHelper.AddMonths(this.CurrentDate, 1), 1);
                     ProcessSelection(shift, selectedDate);
                     break;
                 }
@@ -1515,7 +1536,7 @@ namespace Microsoft.Windows.Controls
             {
                 case CalendarMode.Month:
                 {
-                    DateTime? selectedDate = DateTimeHelper.AddMonths(this.CurrentDate, -1);
+                    DateTime? selectedDate = this._blackoutDates.GetNonBlackoutDate(DateTimeHelper.AddMonths(this.CurrentDate, -1), -1);
                     ProcessSelection(shift, selectedDate);
                     break;
                 }
@@ -1538,25 +1559,26 @@ namespace Microsoft.Windows.Controls
 
         private void ProcessRightKey(bool shift)
         {
+            int moveAmmount = (!this.IsRightToLeft) ? 1 : -1;
             switch (this.DisplayMode)
             {
                 case CalendarMode.Month:
                 {
-                    DateTime? selectedDate = DateTimeHelper.AddDays(this.CurrentDate, 1);
+                    DateTime? selectedDate = this._blackoutDates.GetNonBlackoutDate(DateTimeHelper.AddDays(this.CurrentDate, moveAmmount), moveAmmount);
                     ProcessSelection(shift, selectedDate);
                     break;
                 }
 
                 case CalendarMode.Year:
                 {
-                    DateTime? selectedMonth = DateTimeHelper.AddMonths(this.DisplayDate, 1);
+                    DateTime? selectedMonth = DateTimeHelper.AddMonths(this.DisplayDate, moveAmmount);
                     OnSelectedMonthChanged(selectedMonth);
                     break;
                 }
 
                 case CalendarMode.Decade:
                 {
-                    DateTime? selectedYear = DateTimeHelper.AddYears(this.DisplayDate, 1);
+                    DateTime? selectedYear = DateTimeHelper.AddYears(this.DisplayDate, moveAmmount);
                     OnSelectedYearChanged(selectedYear);
                     break;
                 }
@@ -1655,7 +1677,7 @@ namespace Microsoft.Windows.Controls
                     }
                     else
                     {
-                        DateTime? selectedDate = DateTimeHelper.AddDays(this.CurrentDate, -COLS);
+                        DateTime? selectedDate = this._blackoutDates.GetNonBlackoutDate(DateTimeHelper.AddDays(this.CurrentDate, -COLS), -1);
                         ProcessSelection(shift, selectedDate);
                     }
 

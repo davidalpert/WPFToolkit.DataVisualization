@@ -175,6 +175,11 @@ namespace Microsoft.Windows.Controls
                get { return new SRID("DataGridRow_CannotSelectRowWhenCells"); } 
            }
 
+           public static SRID DataGrid_AutomationInvokeFailed
+           {
+               get { return new SRID("DataGrid_AutomationInvokeFailed"); }
+           }
+
            public static SRID SelectedCellsCollection_InvalidItem 
            { 
                get { return new SRID("SelectedCellsCollection_InvalidItem"); } 

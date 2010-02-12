@@ -12,7 +12,7 @@ using System.Windows;
 // WPF-specific settings
 [assembly: AssemblyDescription("WPF Toolkit Data Visualization Controls")]
 [assembly: AssemblyProduct("WPF Toolkit")]
-[assembly: AssemblyFileVersion("3.5.40619.1")]
+[assembly: AssemblyFileVersion("3.5.50211.1")]
 [assembly: AssemblyVersion("3.5.40128.1")]
 
 // WPF-only settings

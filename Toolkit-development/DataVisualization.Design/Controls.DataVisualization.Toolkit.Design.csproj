@@ -9,7 +9,7 @@
     <OutputType>library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>System.Windows.Controls.DataVisualization.Design</RootNamespace>
-    <AssemblyName>System.Windows.Controls.DataVisualization.Toolkit.Design</AssemblyName>
+    <AssemblyName>System.Windows.Controls.DataVisualization.Toolkit.Design.4.0</AssemblyName>
     <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <ProjectTypeGuids>{60dc8134-eba5-43b8-bcc9-bb4bc16c2548};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
@@ -20,7 +20,7 @@
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
     <OutputPath>..\bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE;MWD40</DefineConstants>
+    <DefineConstants>DEBUG;TRACE;MWD40;NO_EASING_FUNCTIONS</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
@@ -28,13 +28,13 @@
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>..\bin\Release\</OutputPath>
-    <DefineConstants>TRACE;MWD40</DefineConstants>
+    <DefineConstants>TRACE;MWD40;NO_EASING_FUNCTIONS</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release with Code Analysis|AnyCPU' ">
     <OutputPath>bin\Release with Code Analysis\</OutputPath>
-    <DefineConstants>TRACE;MWD40</DefineConstants>
+    <DefineConstants>TRACE;MWD40;NO_EASING_FUNCTIONS</DefineConstants>
     <Optimize>true</Optimize>
     <DebugType>pdbonly</DebugType>
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -107,6 +107,7 @@
     <Compile Include="ScatterSeriesMetadata.cs" />
     <Compile Include="SeriesMetadata.cs" />
     <Compile Include="TextBoxEditor.cs" />
+    <Compile Include="TreeMapMetadata.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <AppDesigner Include="Properties\" />
     <Compile Include="Properties\Resources.Designer.cs">
@@ -122,7 +123,8 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="..\DataVisualization\System.Windows.Controls.DataVisualization.Toolkit.XML" />
-    <EmbeddedResource Include="System.Windows.Controls.DataVisualization.Charting\Chart.png" />
+    <EmbeddedResource Include="System.Windows.Controls.DataVisualization\TreeMap.Icon.12x12.png" />
+    <EmbeddedResource Include="System.Windows.Controls.DataVisualization\TreeMap.Icon.24x24.png" />
     <EmbeddedResource Include="System.Windows.Controls.DataVisualization.Charting\AreaSeries.Icon.12x12.png" />
     <EmbeddedResource Include="System.Windows.Controls.DataVisualization.Charting\AreaSeries.Icon.24x24.png" />
     <EmbeddedResource Include="System.Windows.Controls.DataVisualization.Charting\BarSeries.Icon.12x12.png" />
@@ -131,6 +133,8 @@
     <EmbeddedResource Include="System.Windows.Controls.DataVisualization.Charting\BubbleSeries.Icon.24x24.png" />
     <EmbeddedResource Include="System.Windows.Controls.DataVisualization.Charting\CategoryAxis.Icon.12x12.png" />
     <EmbeddedResource Include="System.Windows.Controls.DataVisualization.Charting\CategoryAxis.Icon.24x24.png" />
+    <EmbeddedResource Include="System.Windows.Controls.DataVisualization.Charting\Chart.Icon.12x12.png" />
+    <EmbeddedResource Include="System.Windows.Controls.DataVisualization.Charting\Chart.Icon.24x24.png" />
     <EmbeddedResource Include="System.Windows.Controls.DataVisualization.Charting\ColumnSeries.Icon.12x12.png" />
     <EmbeddedResource Include="System.Windows.Controls.DataVisualization.Charting\ColumnSeries.Icon.24x24.png" />
     <EmbeddedResource Include="System.Windows.Controls.DataVisualization.Charting\DateTimeAxis.Icon.12x12.png" />

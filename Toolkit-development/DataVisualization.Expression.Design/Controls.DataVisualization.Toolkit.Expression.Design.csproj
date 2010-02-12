@@ -20,7 +20,7 @@
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
     <OutputPath>..\bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE;MWD40</DefineConstants>
+    <DefineConstants>DEBUG;TRACE;MWD40;NO_EASING_FUNCTIONS</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
@@ -28,13 +28,13 @@
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>..\bin\Release\</OutputPath>
-    <DefineConstants>TRACE;MWD40</DefineConstants>
+    <DefineConstants>TRACE;MWD40;NO_EASING_FUNCTIONS</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release with Code Analysis|AnyCPU' ">
     <OutputPath>bin\Release with Code Analysis\</OutputPath>
-    <DefineConstants>TRACE;MWD40</DefineConstants>
+    <DefineConstants>TRACE;MWD40;NO_EASING_FUNCTIONS</DefineConstants>
     <Optimize>true</Optimize>
     <DebugType>pdbonly</DebugType>
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -82,6 +82,7 @@
     <Compile Include="..\DataVisualization.Design\MetadataBase.cs">
       <Link>MetadataBase.cs</Link>
     </Compile>
+    <Compile Include="DataPointSeriesMetadata.cs" />
     <Compile Include="GlobalSuppressions.cs" />
     <Compile Include="MetadataRegistration.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

@@ -156,6 +156,32 @@ namespace MS.Internal
             DoubleUtil.AreClose(point1.Y, point2.Y);
         }
 
+        /// <summary>
+        /// Compares two rectangles for fuzzy equality.  This function
+        /// helps compensate for the fact that double values can 
+        /// acquire error when operated upon
+        /// </summary>
+        /// <param name='rect1'>The first rectangle to compare</param>
+        /// <param name='rect2'>The second rectangle to compare</param>
+        /// <returns>Whether or not the two rectangles are equal</returns>
+        public static bool AreClose(Rect rect1, Rect rect2)
+        {
+            // If they're both empty, don't bother with the double logic.
+            if (rect1.IsEmpty)
+            {
+                return rect2.IsEmpty;
+            }
+
+            // At this point, rect1 isn't empty, so the first thing we can test is
+            // rect2.IsEmpty, followed by property-wise compares.
+
+            return (!rect2.IsEmpty) &&
+                DoubleUtil.AreClose(rect1.X, rect2.X) &&
+                DoubleUtil.AreClose(rect1.Y, rect2.Y) &&
+                DoubleUtil.AreClose(rect1.Height, rect2.Height) &&
+                DoubleUtil.AreClose(rect1.Width, rect2.Width);
+        }
+
 #if UNUSED
         /// <summary>
         /// IsZero - Returns whether or not the double is "close" to 0.  Same as AreClose(double, 0),
@@ -199,32 +225,6 @@ namespace MS.Internal
         { 
             return DoubleUtil.AreClose(vector1.X, vector2.X) && 
                    DoubleUtil.AreClose(vector1.Y, vector2.Y);
-        }
-
-        /// <summary>
-        /// Compares two rectangles for fuzzy equality.  This function
-        /// helps compensate for the fact that double values can 
-        /// acquire error when operated upon
-        /// </summary>
-        /// <param name='rect1'>The first rectangle to compare</param>
-        /// <param name='rect2'>The second rectangle to compare</param>
-        /// <returns>Whether or not the two rectangles are equal</returns>
-        public static bool AreClose(Rect rect1, Rect rect2)
-        {
-            // If they're both empty, don't bother with the double logic.
-            if (rect1.IsEmpty)
-            {
-                return rect2.IsEmpty;
-            }
-
-            // At this point, rect1 isn't empty, so the first thing we can test is
-            // rect2.IsEmpty, followed by property-wise compares.
-
-            return (!rect2.IsEmpty) &&
-                DoubleUtil.AreClose(rect1.X, rect2.X) &&
-                DoubleUtil.AreClose(rect1.Y, rect2.Y) &&
-                DoubleUtil.AreClose(rect1.Height, rect2.Height) &&
-                DoubleUtil.AreClose(rect1.Width, rect2.Width);
         }
 
         /// <summary>

@@ -79,10 +79,9 @@ namespace Microsoft.Windows.Controls
         /// <returns>Hash value</returns>
         public override int GetHashCode()
         {
-            return 
-                _column.GetHashCode() ^
-                _content.GetHashCode() ^
-                _item.GetHashCode();
+            return ((_column == null ? 0 : _column.GetHashCode()) ^
+                 (_content == null ? 0 : _content.GetHashCode()) ^
+                 (_item == null ? 0 : _item.GetHashCode()));
         } 
 
         /// <summary>

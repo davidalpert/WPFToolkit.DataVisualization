@@ -31,7 +31,7 @@ namespace Microsoft.Windows.Controls
     [TemplatePart(Name = DatePicker.ElementPopup, Type = typeof(Popup))]
     [TemplateVisualState(Name = VisualStates.StateNormal, GroupName = VisualStates.GroupCommon)]
     [TemplateVisualState(Name = VisualStates.StateDisabled, GroupName = VisualStates.GroupCommon)]
-    public partial class DatePicker : Control
+    public class DatePicker : Control
     {
         #region Constants
 
@@ -95,6 +95,7 @@ namespace Microsoft.Windows.Controls
             DefaultStyleKeyProperty.OverrideMetadata(typeof(DatePicker), new FrameworkPropertyMetadata(typeof(DatePicker)));
             EventManager.RegisterClassHandler(typeof(DatePicker), UIElement.GotFocusEvent, new RoutedEventHandler(OnGotFocus));
             KeyboardNavigation.TabNavigationProperty.OverrideMetadata(typeof(DatePicker), new FrameworkPropertyMetadata(KeyboardNavigationMode.Once));
+            KeyboardNavigation.IsTabStopProperty.OverrideMetadata(typeof(DatePicker), new FrameworkPropertyMetadata(false));
             IsEnabledProperty.OverrideMetadata(typeof(DatePicker), new UIPropertyMetadata(new PropertyChangedCallback(OnIsEnabledChanged)));
         }
 
@@ -500,6 +501,15 @@ namespace Microsoft.Windows.Controls
             }
 
             dp.OnSelectedDateChanged(new CalendarSelectionChangedEventArgs(DatePicker.SelectedDateChangedEvent, removedItems, addedItems));
+
+            DatePickerAutomationPeer peer = UIElementAutomationPeer.FromElement(dp) as DatePickerAutomationPeer;
+            // Raise the propetyChangeEvent for Value if Automation Peer exist
+            if (peer != null)
+            {
+                string addedDateString = addedDate.HasValue ? dp.DateTimeToString(addedDate.Value) : "";
+                string removedDateString = removedDate.HasValue ? dp.DateTimeToString(removedDate.Value) : "";
+                peer.RaiseValuePropertyChangedEvent(removedDateString, addedDateString);
+            }
         }
 
         private static object CoerceSelectedDate(DependencyObject d, object value)
@@ -619,12 +629,6 @@ namespace Microsoft.Windows.Controls
                     dp.SetValueNoCallback(DatePicker.SelectedDateProperty, null);
                 }
             }
-
-            DatePickerAutomationPeer peer = UIElementAutomationPeer.FromElement(dp) as DatePickerAutomationPeer;
-            // Raise the propetyChangeEvent for Value if Automation Peer exist
-            if (peer != null)
-                peer.RaiseValuePropertyChangedEvent((string)e.OldValue, (string)e.NewValue);
-
         }
 
         private static object OnCoerceText(DependencyObject dObject, object baseValue)
@@ -768,7 +772,7 @@ namespace Microsoft.Windows.Controls
         {
             if (this.SelectedDate != null)
             {
-                return this.SelectedDate.Value.ToString(DateTimeHelper.GetCurrentDateFormat());
+                return this.SelectedDate.Value.ToString(DateTimeHelper.GetDateFormat(DateTimeHelper.GetCulture(this)));
             }
             else
             {
@@ -997,7 +1001,7 @@ namespace Microsoft.Windows.Controls
 
         private string DateTimeToString(DateTime d)
         {
-            DateTimeFormatInfo dtfi = DateTimeHelper.GetCurrentDateFormat();
+            DateTimeFormatInfo dtfi = DateTimeHelper.GetDateFormat(DateTimeHelper.GetCulture(this));
 
             switch (this.SelectedDateFormat)
             {
@@ -1115,7 +1119,7 @@ namespace Microsoft.Windows.Controls
             // TryParse is not used in order to be able to pass the exception to the TextParseError event
             try
             {
-                newSelectedDate = DateTime.Parse(text, DateTimeHelper.GetCurrentDateFormat());
+                newSelectedDate = DateTime.Parse(text, DateTimeHelper.GetDateFormat(DateTimeHelper.GetCulture(this)));
 
                 if (Calendar.IsValidDateSelection(this._calendar, newSelectedDate))
                 {
@@ -1265,7 +1269,7 @@ namespace Microsoft.Windows.Controls
         {
             if (this._textBox != null)
             {
-                DateTimeFormatInfo dtfi = DateTimeHelper.GetCurrentDateFormat();
+                DateTimeFormatInfo dtfi = DateTimeHelper.GetDateFormat(DateTimeHelper.GetCulture(this));
                 this.SetTextInternal(string.Empty);
                 this._defaultText = string.Empty;
 

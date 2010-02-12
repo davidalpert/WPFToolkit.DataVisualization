@@ -252,7 +252,7 @@ namespace System.Windows
                 {
                     if (transition.Storyboard == null || transition.ExplicitStoryboardCompleted) 
                     {
-                        if (ShouldRunStateStoryboard(control, element))
+                        if (ShouldRunStateStoryboard(control, element, state, group))
                         {
                             group.StartNewThenStopOld(element, state.Storyboard);
                         }
@@ -269,7 +269,7 @@ namespace System.Windows
                     {
                         if (transition.DynamicStoryboardCompleted)
                         {
-                            if (ShouldRunStateStoryboard(control, element))
+                            if (ShouldRunStateStoryboard(control, element, state, group))
                             {
                                 group.StartNewThenStopOld(element, state.Storyboard);
                             }
@@ -302,7 +302,7 @@ namespace System.Windows
         ///   if the stateGroupsRoot or control is not in the tree, don't start the new
         ///   storyboards.
         /// </summary> 
-        private static bool ShouldRunStateStoryboard(FrameworkElement control, FrameworkElement stateGroupsRoot)
+        private static bool ShouldRunStateStoryboard(FrameworkElement control, FrameworkElement stateGroupsRoot, VisualState state, VisualStateGroup group)
         {
             bool controlInTree = true;
             bool stateGroupsRootInTree = true;
@@ -328,7 +328,7 @@ namespace System.Windows
                 }
             }
 
-            return controlInTree && stateGroupsRootInTree;
+            return (controlInTree && stateGroupsRootInTree && (state == group.CurrentState));
         }
 
         protected void RaiseCurrentStateChanging(VisualStateGroup stateGroup, VisualState oldState, VisualState newState, Control control)

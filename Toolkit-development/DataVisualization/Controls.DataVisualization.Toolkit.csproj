@@ -22,7 +22,7 @@
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
     <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DefineConstants>DEBUG;TRACE;NO_EASING_FUNCTIONS</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
@@ -30,14 +30,14 @@
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
+    <DefineConstants>TRACE;NO_EASING_FUNCTIONS</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <RunCodeAnalysis>false</RunCodeAnalysis>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release with Code Analysis|AnyCPU' ">
     <OutputPath>bin\Release with Code Analysis\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
+    <DefineConstants>TRACE;NO_EASING_FUNCTIONS</DefineConstants>
     <Optimize>true</Optimize>
     <DebugType>pdbonly</DebugType>
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -103,8 +103,8 @@
     <Compile Include="Charting\Chart\SeriesHostAxesCollection.cs" />
     <Compile Include="Charting\Series\AreaSeries.cs" />
     <Compile Include="Charting\Series\LineAreaBaseSeries.cs" />
-    <Compile Include="Charting\StyleDispensedEventArgs.cs" />
-    <Compile Include="Charting\StyleEnumerator.cs" />
+    <Compile Include="Charting\ResourceDictionaryDispensedEventArgs.cs" />
+    <Compile Include="Charting\ResourceDictionaryEnumerator.cs" />
     <Compile Include="Charting\ValueMarginCoordinateAndOverlap.cs" />
     <Compile Include="Collections\LeftLeaningRedBlackTree.cs" />
     <Compile Include="Collections\MultipleDictionary.cs" />
@@ -139,7 +139,7 @@
     <Compile Include="Charting\Series\DataPointSeriesWithAxes.cs" />
     <Compile Include="Charting\Series\DataPointSingleSeriesWithAxes.cs" />
     <Compile Include="StringFormatConverter.cs" />
-    <Compile Include="StyleDispenserExtensions.cs" />
+    <Compile Include="ResourceDictionaryExtensions.cs" />
     <Compile Include="Tuple.cs" />
     <Compile Include="UniqueObservableCollection.cs" />
     <Compile Include="Unit.cs" />
@@ -150,15 +150,27 @@
     <Compile Include="Charting\Series\LineSeries.cs" />
     <Compile Include="Charting\Series\ScatterSeries.cs" />
     <Compile Include="Charting\Series\PieSeries.cs" />
+    <Compile Include="Charting\Series\ISeries.cs" />
     <Compile Include="Charting\Series\Series.cs" />
     <Compile Include="Charting\Series\DataPointSeries.cs" />
-    <Compile Include="IStyleDispenser.cs" />
-    <Compile Include="Charting\StyleDispenser.cs" />
+    <Compile Include="IResourceDictionaryDispenser.cs" />
+    <Compile Include="Charting\ResourceDictionaryDispenser.cs" />
     <Compile Include="EnumerableFunctions.cs" />
     <Compile Include="Legend\Legend.cs" />
     <Compile Include="RangeEnumerableFunctions.cs" />
-    <Compile Include="StylePalette.cs" />
+    <Compile Include="ResourceDictionaryCollection.cs" />
     <Compile Include="Title\Title.cs" />
+    <Compile Include="Treemap\BindingExtractor.cs" />
+    <Compile Include="Treemap\TreeMap.cs" />
+    <Compile Include="Treemap\TreeMapItemDefinition.cs" />
+    <Compile Include="Treemap\TreeMapItemDefinitionSelector.cs" />
+    <Compile Include="Treemap\Interpolators\DoubleInterpolator.cs" />
+    <Compile Include="Treemap\Interpolators\InterpolationMode.cs" />
+    <Compile Include="Treemap\Interpolators\Interpolator.cs" />
+    <Compile Include="Treemap\Interpolators\RangeInterpolator.cs" />
+    <Compile Include="Treemap\Interpolators\SolidColorBrushInterpolator.cs" />
+    <Compile Include="Treemap\Layout\SquaringAlgorithm.cs" />
+    <Compile Include="Treemap\Layout\TreeMapNode.cs" />
     <Compile Include="GlobalSuppressions.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Properties\Resources.Designer.cs">

@@ -478,10 +478,10 @@ namespace Microsoft.Windows.Controls
             private set { SetValue(ActualWidthPropertyKey, value); }
         }
 
-        public static readonly DependencyPropertyKey ActualWidthPropertyKey =
+        private static readonly DependencyPropertyKey ActualWidthPropertyKey =
             DependencyProperty.RegisterReadOnly("ActualWidth", typeof(double), typeof(DataGridColumn), new FrameworkPropertyMetadata(0.0, null, new CoerceValueCallback(OnCoerceActualWidth)));
 
-        internal static readonly DependencyProperty ActualWidthProperty = ActualWidthPropertyKey.DependencyProperty;
+        public static readonly DependencyProperty ActualWidthProperty = ActualWidthPropertyKey.DependencyProperty;
 
         private static object OnCoerceActualWidth(DependencyObject d, object baseValue)
         {

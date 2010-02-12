@@ -12,6 +12,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 
 namespace System.Windows.Controls.DataVisualization.Collections
 {
@@ -228,6 +229,7 @@ namespace System.Windows.Controls.DataVisualization.Collections
         /// </summary>
         /// <param name="key">Specified key.</param>
         /// <returns>Value associated with the specified key.</returns>
+        [SuppressMessage("Microsoft.Naming", "CA2204:Literals should be spelled correctly", MessageId = "GetValueForKey", Justification = "Method name.")]
         public TValue GetValueForKey(TKey key)
         {
             if (IsMultiDictionary)

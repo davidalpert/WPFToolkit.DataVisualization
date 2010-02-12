@@ -1005,10 +1005,12 @@ namespace Microsoft.Windows.Controls.Primitives
         {
             if (_monthView != null)
             {
+                string[] shortestDayNames = DateTimeHelper.GetDateFormat(DateTimeHelper.GetCulture(this)).ShortestDayNames;
+
                 for (int childIndex = 0; childIndex < COLS; childIndex++)
                 {
                     FrameworkElement daytitle = _monthView.Children[childIndex] as FrameworkElement;
-                    string[] shortestDayNames = DateTimeHelper.GetCurrentDateFormat().ShortestDayNames;
+                    
                     if (daytitle != null && shortestDayNames != null && shortestDayNames.Length > 0)
                     {
                         if (this.Owner != null)
@@ -1017,7 +1019,7 @@ namespace Microsoft.Windows.Controls.Primitives
                         }
                         else
                         {
-                            daytitle.DataContext = shortestDayNames[(childIndex + (int)DateTimeHelper.GetCurrentDateFormat().FirstDayOfWeek) % shortestDayNames.Length];
+                            daytitle.DataContext = shortestDayNames[(childIndex + (int)DateTimeHelper.GetDateFormat(DateTimeHelper.GetCulture(this)).FirstDayOfWeek) % shortestDayNames.Length];
                         }
                     }
                 }
@@ -1032,6 +1034,7 @@ namespace Microsoft.Windows.Controls.Primitives
             bool isMinMonth = DateTimeHelper.CompareYearMonth(firstDayOfMonth, DateTime.MinValue) <= 0;
             bool isMaxMonth = DateTimeHelper.CompareYearMonth(firstDayOfMonth, DateTime.MaxValue) >= 0;
             int daysInMonth = _calendar.GetDaysInMonth(firstDayOfMonth.Year, firstDayOfMonth.Month);
+            CultureInfo culture = DateTimeHelper.GetCulture(this);
 
             int count = ROWS * COLS;
             for (int childIndex = COLS; childIndex < count; childIndex++)
@@ -1045,13 +1048,13 @@ namespace Microsoft.Windows.Controls.Primitives
                     DateTime dateToAdd = _calendar.AddDays(firstDayOfMonth, dayOffset);
                     SetMonthModeDayButtonState(childButton, dateToAdd);
                     childButton.DataContext = dateToAdd;
-                    childButton.SetContentInternal(DateTimeHelper.ToDayString(dateToAdd));
+                    childButton.SetContentInternal(DateTimeHelper.ToDayString(dateToAdd, culture));
                 }
                 else
                 {
                     SetMonthModeDayButtonState(childButton, null);
                     childButton.DataContext = null;
-                    childButton.SetContentInternal(DateTimeHelper.ToDayString(null));
+                    childButton.SetContentInternal(DateTimeHelper.ToDayString(null, culture));
                 }
             }
         }
@@ -1179,7 +1182,7 @@ namespace Microsoft.Windows.Controls.Primitives
         {
             if (this._headerButton != null)
             {
-                this._headerButton.Content = DateTimeHelper.ToYearMonthPatternString(DisplayDate);
+                this._headerButton.Content = DateTimeHelper.ToYearMonthPatternString(DisplayDate, DateTimeHelper.GetCulture(this));
 
                 if (this.Owner != null)
                 {                    
@@ -1237,7 +1240,7 @@ namespace Microsoft.Windows.Controls.Primitives
                     // There should be no time component. Time is 12:00 AM
                     DateTime day = new DateTime(year, 1, 1);
                     childButton.DataContext = day;
-                    childButton.SetContentInternal(DateTimeHelper.ToYearString(day));
+                    childButton.SetContentInternal(DateTimeHelper.ToYearString(day, DateTimeHelper.GetCulture(this)));
                     childButton.Visibility = Visibility.Visible;
 
                     if (this.Owner != null)
@@ -1281,7 +1284,7 @@ namespace Microsoft.Windows.Controls.Primitives
                 // There should be no time component. Time is 12:00 AM
                 DateTime day = new DateTime(DisplayDate.Year, count + 1, 1);
                 childButton.DataContext = day;
-                childButton.SetContentInternal(DateTimeHelper.ToAbbreviatedMonthString(day));
+                childButton.SetContentInternal(DateTimeHelper.ToAbbreviatedMonthString(day,DateTimeHelper.GetCulture(this)));
                 childButton.Visibility = Visibility.Visible;
 
                 if (this.Owner != null)
@@ -1311,7 +1314,7 @@ namespace Microsoft.Windows.Controls.Primitives
             if (this._headerButton != null)
             {
                 this._headerButton.IsEnabled = true;
-                this._headerButton.Content = DateTimeHelper.ToYearString(DisplayDate);
+                this._headerButton.Content = DateTimeHelper.ToYearString(DisplayDate, DateTimeHelper.GetCulture(this));
             }
         }
 
@@ -1339,7 +1342,7 @@ namespace Microsoft.Windows.Controls.Primitives
         {
             if (this._headerButton != null)
             {
-                this._headerButton.Content = DateTimeHelper.ToDecadeRangeString(decade);
+                this._headerButton.Content = DateTimeHelper.ToDecadeRangeString(decade, DateTimeHelper.GetCulture(this));
                 this._headerButton.IsEnabled = false;
             }
         }
@@ -1374,7 +1377,7 @@ namespace Microsoft.Windows.Controls.Primitives
             }
             else
             {
-                i = ((day - DateTimeHelper.GetCurrentDateFormat().FirstDayOfWeek + NUMBER_OF_DAYS_IN_WEEK) % NUMBER_OF_DAYS_IN_WEEK);
+                i = ((day - DateTimeHelper.GetDateFormat(DateTimeHelper.GetCulture(this)).FirstDayOfWeek + NUMBER_OF_DAYS_IN_WEEK) % NUMBER_OF_DAYS_IN_WEEK);
             }
 
             if (i == 0)

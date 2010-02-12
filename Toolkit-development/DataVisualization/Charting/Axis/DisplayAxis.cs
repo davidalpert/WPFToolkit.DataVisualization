@@ -503,11 +503,11 @@ namespace System.Windows.Controls.DataVisualization.Charting
             DefaultStyleKeyProperty.OverrideMetadata(typeof(DisplayAxis), new FrameworkPropertyMetadata(typeof(DisplayAxis)));
         }
 
-#endif    
+#endif
         /// <summary>
         /// Instantiates a new instance of the DisplayAxis class.
         /// </summary>
-        internal DisplayAxis()
+        protected DisplayAxis()
         {
             this.OrientedPanel = new OrientedPanel();
 #if SILVERLIGHT

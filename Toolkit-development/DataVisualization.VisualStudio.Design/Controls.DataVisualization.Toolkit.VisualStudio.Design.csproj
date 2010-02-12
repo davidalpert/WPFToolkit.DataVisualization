@@ -20,7 +20,7 @@
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
     <OutputPath>..\bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DefineConstants>DEBUG;TRACE;NO_EASING_FUNCTIONS</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
@@ -28,13 +28,13 @@
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>..\bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
+    <DefineConstants>TRACE;NO_EASING_FUNCTIONS</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release with Code Analysis|AnyCPU' ">
     <OutputPath>bin\Release with Code Analysis\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
+    <DefineConstants>TRACE;NO_EASING_FUNCTIONS</DefineConstants>
     <Optimize>true</Optimize>
     <DebugType>pdbonly</DebugType>
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -61,7 +61,7 @@
     <Reference Include="System.Xml.Linq">
       <RequiredTargetFramework>3.5</RequiredTargetFramework>
     </Reference>
-    <Reference Include="Microsoft.Windows.Design">
+	<Reference Include="Microsoft.Windows.Design">
       <SpecificVersion>False</SpecificVersion>
       <Private>False</Private>
     </Reference>
@@ -157,6 +157,9 @@
     <Compile Include="..\DataVisualization.Design\TitleMetadata.cs">
       <Link>TitleMetadata.cs</Link>
     </Compile>
+    <Compile Include="..\DataVisualization.Design\TreeMapMetadata.cs">
+      <Link>TreeMapMetadata.cs</Link>
+    </Compile>
     <Compile Include="GlobalSuppressions.cs" />
     <Compile Include="MetadataRegistration.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -173,6 +176,7 @@
     </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="System.Windows.Controls.DataVisualization\TreeMap.bmp" />
     <EmbeddedResource Include="System.Windows.Controls.DataVisualization.Charting\AreaSeries.bmp" />
     <EmbeddedResource Include="System.Windows.Controls.DataVisualization.Charting\Axis.bmp" />
     <EmbeddedResource Include="System.Windows.Controls.DataVisualization.Charting\BarSeries.bmp" />

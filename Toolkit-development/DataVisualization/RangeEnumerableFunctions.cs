@@ -23,21 +23,23 @@ namespace System.Windows.Controls.DataVisualization
         public static Range<T> GetRange<T>(this IEnumerable<T> that)
             where T : IComparable
         {
-            if (that.IsEmpty())
+            IEnumerator<T> enumerator = that.GetEnumerator();
+            if (!enumerator.MoveNext())
             {
                 return new Range<T>();
             }
-            T minimum = that.First();
+            T minimum = enumerator.Current;
             T maximum = minimum;
-            foreach (T value in that)
+            while (enumerator.MoveNext())
             {
-                if (ValueHelper.Compare(minimum, value) == 1)
+                T current = enumerator.Current;
+                if (ValueHelper.Compare(minimum, current) == 1)
                 {
-                    minimum = value;
+                    minimum = current;
                 }
-                if (ValueHelper.Compare(maximum, value) == -1)
+                if (ValueHelper.Compare(maximum, current) == -1)
                 {
-                    maximum = value;
+                    maximum = current;
                 }
             }
             return new Range<T>(minimum, maximum);

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Automation.Peers;
 using System.Windows.Automation.Provider;
@@ -45,6 +46,29 @@ namespace Microsoft.Windows.Automation.Peers
         protected override AutomationControlType GetAutomationControlTypeCore()
         {
             return AutomationControlType.DataGrid;
+        }
+
+        protected override List<AutomationPeer> GetChildrenCore()
+        {
+            List<AutomationPeer> children = GetItemPeers();
+            
+            DataGridColumnHeadersPresenter columnsHeaderPresenter = this.OwningDataGrid.ColumnHeadersPresenter;
+
+            // Add ColumnsHeaderPresenter if it is visible
+            if (columnsHeaderPresenter != null && columnsHeaderPresenter.IsVisible)
+            {
+                AutomationPeer columnsHeaderPresenterPeer = FrameworkElementAutomationPeer.CreatePeerForElement(columnsHeaderPresenter);
+                if (columnsHeaderPresenterPeer != null)
+                {
+                    if (children == null)
+                    {
+                        children = new List<AutomationPeer>(1);
+                    }
+                    children.Insert(0, columnsHeaderPresenterPeer);
+                }
+            }
+
+            return children;
         }
 
         /// <summary>
@@ -271,8 +295,7 @@ namespace Microsoft.Windows.Automation.Peers
         }
 
         // Return a list of automation peer corresponding to all rows in the DataGrid
-        // Called from DataGridRowsPresenterAutomationPeer.GetChildrenCore to populate its children
-        internal List<AutomationPeer> GetItemPeers()
+        private List<AutomationPeer> GetItemPeers()
         {
             List<AutomationPeer> peers = new List<AutomationPeer>();
             Dictionary<object, DataGridItemAutomationPeer> oldChildren = new Dictionary<object, DataGridItemAutomationPeer>(_itemPeers);
@@ -398,10 +421,13 @@ namespace Microsoft.Windows.Automation.Peers
         // Raises the selection events when Items selection changes
         internal void RaiseAutomationSelectionEvents(SelectionChangedEventArgs e)
         {
+            int numSelected = this.OwningDataGrid.SelectedItems.Count;
+            int numAdded = e.AddedItems.Count;
+
             // If the result of an AddToSelection or RemoveFromSelection is a single selected item,
             // then all we raise is the ElementSelectedEvent for single item
             if (AutomationPeer.ListenerExists(AutomationEvents.SelectionItemPatternOnElementSelected) &&
-                this.OwningDataGrid.SelectedItems.Count == 1)
+                numSelected == 1 && numAdded == 1)
             {
                 DataGridItemAutomationPeer peer = GetOrCreateItemPeer(this.OwningDataGrid.SelectedItem);
                 if (peer != null)
@@ -483,6 +509,44 @@ namespace Microsoft.Windows.Automation.Peers
                 }
             }
         }
+
+        ///<summary>
+        /// This eliminates the part of bounding rectangle if it is at all being overlapped/clipped by any of the visual ancestor up in the parent chain
+        ///</summary>
+        internal static Rect CalculateVisibleBoundingRect(UIElement uiElement)
+        {
+            Rect boundingRect = Rect.Empty;
+
+            boundingRect = new Rect(uiElement.RenderSize);
+            // Compute visible portion of the rectangle.
+
+            Visual visual = VisualTreeHelper.GetParent(uiElement) as Visual;
+            while (visual != null && boundingRect != Rect.Empty && boundingRect.Height != 0 && boundingRect.Width != 0)
+            {
+                Geometry clipGeometry = VisualTreeHelper.GetClip(visual);
+                if (clipGeometry != null)
+                {
+                    GeneralTransform transform = uiElement.TransformToAncestor(visual).Inverse;
+                    // Safer version of transform to descendent (doing the inverse ourself and saves us changing the co-ordinate space of the owner's bounding rectangle), 
+                    // we want the rect inside of our space. (Which is always rectangular and much nicer to work with)
+                    if (transform != null)
+                    {
+                        Rect clipBounds = clipGeometry.Bounds;
+                        clipBounds = transform.TransformBounds(clipBounds);
+                        boundingRect.Intersect(clipBounds);
+                    }
+                    else
+                    {
+                        // No visibility if non-invertable transform exists.
+                        boundingRect = Rect.Empty;
+                    }
+                }
+                visual = VisualTreeHelper.GetParent(visual) as Visual;
+            }
+
+            return boundingRect;
+        }
+
 
         #endregion
 

@@ -12,7 +12,7 @@ using System.Windows;
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("Microsoft Corp.")]
 [assembly: AssemblyProduct("WPF Toolkit")]
-[assembly: AssemblyCopyright("Copyright © 2009 Microsoft Corp. All rights reserved.")]
+[assembly: AssemblyCopyright("Copyright © 2010 Microsoft Corp. All rights reserved.")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
@@ -40,4 +40,4 @@ using System.Windows;
 // by using the '*' as shown below:
 // [assembly: AssemblyVersion("1.0.*")]
 [assembly: AssemblyVersion("3.5.40128.1")]
-[assembly: AssemblyFileVersion("3.5.40619.1")]
+[assembly: AssemblyFileVersion("3.5.50211.1")]

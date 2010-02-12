@@ -155,7 +155,7 @@ namespace Microsoft.Windows.Controls.Design.VisualStudio
                 delegate(AttributeCallbackBuilder builder) 
                 {
                     // Only add the Sort Category in VS because it causes problems in Blend               
-                    CategoryAttribute sortCategory = new CategoryAttribute("Sort");
+                    CategoryAttribute sortCategory = new CategoryAttribute(SR.Get(SRID.SortCategoryTitle));
                     builder.AddCustomAttributes(DataGridColumn.CanUserSortProperty, sortCategory);
                     builder.AddCustomAttributes(DataGridColumn.SortDirectionProperty, sortCategory);
                     builder.AddCustomAttributes(DataGridColumn.SortMemberPathProperty, sortCategory);
@@ -187,7 +187,7 @@ namespace Microsoft.Windows.Controls.Design.VisualStudio
                 delegate(AttributeCallbackBuilder builder)
                 {
                     // Only add the Selection Category in VS because it causes problems in Blend               
-                    CategoryAttribute comboBoxCategory = new CategoryAttribute("Selection");
+                    CategoryAttribute comboBoxCategory = new CategoryAttribute(SR.Get(SRID.SelectionCategoryTitle));
                     builder.AddCustomAttributes(DataGridComboBoxColumn.DisplayMemberPathProperty, comboBoxCategory);
                     builder.AddCustomAttributes(DataGridComboBoxColumn.SelectedValuePathProperty, comboBoxCategory);
                     

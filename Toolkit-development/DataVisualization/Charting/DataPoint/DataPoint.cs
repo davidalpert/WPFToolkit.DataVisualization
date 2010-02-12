@@ -809,7 +809,7 @@ namespace System.Windows.Controls.DataVisualization.Charting
         /// <summary>
         /// Initializes a new instance of the DataPoint class.
         /// </summary>
-        internal DataPoint()
+        protected DataPoint()
         {
             Loaded += new RoutedEventHandler(OnLoaded);
             IsActive = true;

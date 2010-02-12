@@ -61,6 +61,9 @@ namespace System.Windows.Controls.DataVisualization.Design
             // Note: everything added here must be duplicated in VisualStudio.Design as well!
 
             builder.AddCallback(
+                typeof(SSWCD.Interpolator),
+                b => b.AddCustomAttributes(new ToolboxBrowsableAttribute(false)));
+            builder.AddCallback(
                 typeof(SSWCDC.AxisLabel),
                 b => b.AddCustomAttributes(new ToolboxBrowsableAttribute(false)));
             builder.AddCallback(

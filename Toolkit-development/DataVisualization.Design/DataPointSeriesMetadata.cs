@@ -6,6 +6,7 @@
 extern alias Silverlight;
 using System.ComponentModel;
 using System.Windows.Controls.Design.Common;
+using Microsoft.Windows.Design;
 using Microsoft.Windows.Design.Metadata;
 using SSWCDC = Silverlight::System.Windows.Controls.DataVisualization.Charting;
 
@@ -38,7 +39,7 @@ namespace System.Windows.Controls.DataVisualization.Design
                     b.AddCustomAttributes(
                         Extensions.GetMemberName<SSWCDC.DataPointSeries>(x => x.TransitionDuration),
                         new CategoryAttribute(Properties.Resources.DataVisualization));
-#if SILVERLIGHT
+#if !NO_EASING_FUNCTIONS
                     b.AddCustomAttributes(
                         Extensions.GetMemberName<SSWCDC.DataPointSeries>(x => x.TransitionEasingFunction),
                         new CategoryAttribute(Properties.Resources.DataVisualization));
@@ -63,6 +64,29 @@ namespace System.Windows.Controls.DataVisualization.Design
                     b.AddCustomAttributes(
                         Extensions.GetMemberName<SSWCDC.DataPointSeries>(x => x.ItemsSource),
                         new CategoryAttribute(Properties.Resources.CommonProperties));
+
+#if MWD40
+                    b.AddCustomAttributes(
+                        Extensions.GetMemberName<SSWCDC.DataPointSeries>(x => x.IndependentValuePath),
+                        new DataContextValueSourceAttribute(
+                            Extensions.GetMemberName<SSWCDC.DataPointSeries>(x => x.ItemsSource),
+                            true));
+                    b.AddCustomAttributes(
+                        Extensions.GetMemberName<SSWCDC.DataPointSeries>(x => x.IndependentValueBinding),
+                        new DataContextValueSourceAttribute(
+                            Extensions.GetMemberName<SSWCDC.DataPointSeries>(x => x.ItemsSource),
+                            true));
+                    b.AddCustomAttributes(
+                        Extensions.GetMemberName<SSWCDC.DataPointSeries>(x => x.DependentValuePath),
+                        new DataContextValueSourceAttribute(
+                            Extensions.GetMemberName<SSWCDC.DataPointSeries>(x => x.ItemsSource),
+                            true));
+                    b.AddCustomAttributes(
+                        Extensions.GetMemberName<SSWCDC.DataPointSeries>(x => x.DependentValueBinding),
+                        new DataContextValueSourceAttribute(
+                            Extensions.GetMemberName<SSWCDC.DataPointSeries>(x => x.ItemsSource),
+                            true));
+#endif
                 });
         }
     }

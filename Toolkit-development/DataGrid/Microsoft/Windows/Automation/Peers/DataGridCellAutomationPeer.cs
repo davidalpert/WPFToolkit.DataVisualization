@@ -1,8 +1,10 @@
 ﻿using System;
+using System.Windows;
 using System.Windows.Automation.Peers;
 using System.Windows.Automation.Provider;
 using System.Windows.Controls;
 using Microsoft.Windows.Controls;
+using MS.Internal;
 
 namespace Microsoft.Windows.Automation.Peers
 {
@@ -51,6 +53,16 @@ namespace Microsoft.Windows.Automation.Peers
         protected override string GetClassNameCore()
         {
             return Owner.GetType().Name;
+        }
+
+        ///
+        override protected bool IsOffscreenCore()
+        {
+            if (!Owner.IsVisible)
+                return true;
+
+            Rect boundingRect = DataGridAutomationPeer.CalculateVisibleBoundingRect(this.Owner);
+            return DoubleUtil.AreClose(boundingRect, Rect.Empty) || DoubleUtil.AreClose(boundingRect.Height, 0.0) || DoubleUtil.AreClose(boundingRect.Width, 0.0);
         }
 
         #endregion

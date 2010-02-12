@@ -367,6 +367,7 @@ namespace Microsoft.Windows.Controls.Primitives
 
             if (header != null && header.Column != null)
             {
+                // DataGridLength is a struct, so setting to Auto resets desired and display widths to 0.0.
                 header.Column.Width = DataGridLength.Auto;
                 e.Handled = true;
             }
