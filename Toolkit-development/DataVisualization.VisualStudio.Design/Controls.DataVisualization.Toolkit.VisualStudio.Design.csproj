@@ -61,11 +61,13 @@
     <Reference Include="System.Xml.Linq">
       <RequiredTargetFramework>3.5</RequiredTargetFramework>
     </Reference>
-	<Reference Include="Microsoft.Windows.Design">
+    <Reference Include="Microsoft.Windows.Design">
+      <HintPath>..\..\ExternalTools\VisualStudio\Microsoft.Windows.Design.dll</HintPath>
       <SpecificVersion>False</SpecificVersion>
       <Private>False</Private>
     </Reference>
     <Reference Include="Microsoft.Windows.Design.Extensibility">
+      <HintPath>..\..\ExternalTools\VisualStudio\Microsoft.Windows.Design.Extensibility.dll</HintPath>
       <SpecificVersion>False</SpecificVersion>
       <Private>False</Private>
     </Reference>

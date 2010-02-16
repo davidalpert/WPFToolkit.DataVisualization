@@ -62,10 +62,12 @@
       <RequiredTargetFramework>3.5</RequiredTargetFramework>
     </Reference>
     <Reference Include="Microsoft.Windows.Design.Extensibility">
+      <HintPath>..\..\ExternalTools\Expression\Microsoft.Windows.Design.Extensibility.dll</HintPath>
       <SpecificVersion>False</SpecificVersion>
       <Private>False</Private>
     </Reference>
     <Reference Include="Microsoft.Windows.Design.Interaction">
+      <HintPath>..\..\ExternalTools\Expression\Microsoft.Windows.Design.Interaction.dll</HintPath>
       <SpecificVersion>False</SpecificVersion>
       <Private>False</Private>
     </Reference>
