@@ -104,7 +104,7 @@ namespace System.Windows.Controls.DataVisualization.Charting
         /// DependentAxisProperty property changed handler.
         /// </summary>
         /// <param name="oldValue">Old value.</param>
-        /// <param name="newValue">New value.</param>        
+        /// <param name="newValue">New value.</param>
         protected virtual void OnInternalDependentAxisPropertyChanged(IAxis oldValue, IAxis newValue)
         {
             if (newValue != null 
@@ -152,7 +152,7 @@ namespace System.Windows.Controls.DataVisualization.Charting
         /// IndependentAxisProperty property changed handler.
         /// </summary>
         /// <param name="oldValue">Old value.</param>
-        /// <param name="newValue">New value.</param>        
+        /// <param name="newValue">New value.</param>
         protected virtual void OnInternalIndependentAxisPropertyChanged(IAxis oldValue, IAxis newValue)
         {
             if (newValue != null
@@ -168,11 +168,11 @@ namespace System.Windows.Controls.DataVisualization.Charting
         #endregion protected Axis IndependentAxis
 
         /// <summary>
-        /// Initializes a new instance of the DynamicSeriesWithAxes class.
+        /// Initializes a new instance of the DataPointSeriesWithAxes class.
         /// </summary>
-        internal DataPointSeriesWithAxes()
+        protected DataPointSeriesWithAxes()
         {
-            this.DataPointsByActualDependentValue = 
+            this.DataPointsByActualDependentValue =
                 new OrderedMultipleDictionary<IComparable, DataPoint>(
                     false,
                     (left, right) => 
@@ -571,9 +571,9 @@ namespace System.Windows.Controls.DataVisualization.Charting
                 {
                     selector = (dataPoint) => (IComparable)dataPoint.ActualDependentValue;
 
-                    Nullable<Tuple<DataPoint, DataPoint>> largestAndSmallestValues = this.DataPointsByActualDependentValue.GetLargestAndSmallestValues();
-                    minimumPoint = largestAndSmallestValues.Value.First;
-                    maximumPoint = largestAndSmallestValues.Value.Second;
+                    Tuple<DataPoint, DataPoint> largestAndSmallestValues = this.DataPointsByActualDependentValue.GetLargestAndSmallestValues();
+                    minimumPoint = largestAndSmallestValues.Item1;
+                    maximumPoint = largestAndSmallestValues.Item2;
                     margin = minimumPoint.GetActualMargin(this.InternalActualDependentAxis);
                 }
                 

@@ -6,17 +6,6 @@
 ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-; DataGrid Selection Commands
-DataGrid_SelectAllCommandText=Select All
-DataGrid_SelectAllKey=Ctrl+A
-DataGrid_SelectAllKeyDisplayString=Ctrl+A
-
-; DataGrid Editing Commands
-DataGrid_BeginEditCommandText=Begin Edit
-DataGrid_CommitEditCommandText=Commit Edit
-DataGrid_CancelEditCommandText=Cancel Edit
-DataGrid_DeleteCommandText=Delete
-
 ; DataGrid Automation Strings
 DataGridCellItemAutomationPeer_NameCoreFormat=Item: {0}, Column Display Index: {1}
 
@@ -29,7 +18,7 @@ Calendar_PreviousButtonName=Previous button
 DatePickerAutomationPeer_LocalizedControlType=date picker
 DatePickerTextBox_DefaultWatermarkText=<Enter text here>
 DatePicker_DropDownButtonName=Show Calendar
-DatePicker_WatermarkText=Show Calendar
+DatePicker_WatermarkText=Select a date
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -50,6 +39,7 @@ DataGrid_NullColumn=Cannot add a null column to a DataGrid's column collection.
 DataGrid_ReadonlyCellsItemsSource=The ItemsSource for the DataGridCellsPresenter is read-only.
 DataGrid_InvalidSortDescription=The SortDescriptions added are not valid. The probable solutions are to set the CanUserSort on the Column to false, or to use SortMemberPath property on the Column, or to handle the Sorting event on DataGrid.
 DataGrid_ProbableInvalidSortDescription=Items refresh of the DataGrid failed. One of the probable causes is that the SortDescriptions added are not valid, in which case probable solutions are to set the CanUserSort on the Column to false, or to use SortMemberPath property on the Column, or to handle the Sorting event on DataGrid.
+DataGrid_AutomationInvokeFailed=Invoke operation failed. Cannot edit another cell or row while the current one has validation errors.
 
 ; DataGrid Length
 DataGridLength_InvalidType=Invalid type.
@@ -87,7 +77,7 @@ DatePicker_OnSelectedDateFormatChanged_InvalidValue=DatePickerFormat value is no
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;
-;                         UIAutomation strings DO NOT LOCALIZE
+;                         UIAutomation strings
 ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

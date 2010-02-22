@@ -31,7 +31,7 @@ namespace Microsoft.Windows.Controls
     [TemplatePart(Name = DatePicker.ElementPopup, Type = typeof(Popup))]
     [TemplateVisualState(Name = VisualStates.StateNormal, GroupName = VisualStates.GroupCommon)]
     [TemplateVisualState(Name = VisualStates.StateDisabled, GroupName = VisualStates.GroupCommon)]
-    public partial class DatePicker : Control
+    public class DatePicker : Control
     {
         #region Constants
 
@@ -93,8 +93,10 @@ namespace Microsoft.Windows.Controls
         static DatePicker()
         {
             DefaultStyleKeyProperty.OverrideMetadata(typeof(DatePicker), new FrameworkPropertyMetadata(typeof(DatePicker)));
-            FocusableProperty.OverrideMetadata(typeof(DatePicker), new FrameworkPropertyMetadata(false));
+            EventManager.RegisterClassHandler(typeof(DatePicker), UIElement.GotFocusEvent, new RoutedEventHandler(OnGotFocus));
             KeyboardNavigation.TabNavigationProperty.OverrideMetadata(typeof(DatePicker), new FrameworkPropertyMetadata(KeyboardNavigationMode.Once));
+            KeyboardNavigation.IsTabStopProperty.OverrideMetadata(typeof(DatePicker), new FrameworkPropertyMetadata(false));
+            IsEnabledProperty.OverrideMetadata(typeof(DatePicker), new UIPropertyMetadata(new PropertyChangedCallback(OnIsEnabledChanged)));
         }
 
         /// <summary>
@@ -103,7 +105,6 @@ namespace Microsoft.Windows.Controls
         public DatePicker()
         {
             InitializeCalendar();
-            this.IsEnabledChanged += new DependencyPropertyChangedEventHandler(OnDatePickerIsEnabledChanged);
             this._defaultText = string.Empty;
 
             // Binding to FirstDayOfWeek and DisplayDate wont work
@@ -316,7 +317,20 @@ namespace Microsoft.Windows.Controls
             "IsDropDownOpen",
             typeof(bool),
             typeof(DatePicker),
-            new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, OnIsDropDownOpenChanged));
+            new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, OnIsDropDownOpenChanged, OnCoerceIsDropDownOpen));
+
+        private static object OnCoerceIsDropDownOpen(DependencyObject d, object baseValue)
+        {
+            DatePicker dp = d as DatePicker;
+            Debug.Assert(dp != null);
+
+            if (!dp.IsEnabled)
+            {
+                return false;
+            }
+
+            return baseValue;
+        }
 
         /// <summary>
         /// IsDropDownOpenProperty property changed handler.
@@ -335,6 +349,18 @@ namespace Microsoft.Windows.Controls
                 if (newValue)
                 {
                     dp._originalSelectedDate = dp.SelectedDate;
+                    // When the popup is opened set focus to the DisplayDate button. 
+                    // Do this asynchronously because the IsDropDownOpen could 
+                    // have been set even before the template for the DatePicker is 
+                    // applied. And this would mean that the visuals wouldn't be available yet.
+
+                    dp.Dispatcher.BeginInvoke(DispatcherPriority.Input, (Action)delegate()
+                    {
+                        
+                        // setting the focus to the calendar will focus the correct date.
+                        dp._calendar.Focus();
+                    });
+
                 }
             }
         }
@@ -346,12 +372,36 @@ namespace Microsoft.Windows.Controls
         /// <summary>
         /// Called when the IsEnabled property changes.
         /// </summary>
-        /// <param name="sender">Sender object</param>
-        /// <param name="e">Property changed args</param>
-        private void OnDatePickerIsEnabledChanged(object sender, DependencyPropertyChangedEventArgs e)
+        private static void OnIsEnabledChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
-            UpdateDisabledVisual();
+            DatePicker dp = d as DatePicker;
+            Debug.Assert(dp != null);
+
+            dp.CoerceValue(IsDropDownOpenProperty);
+
+            OnVisualStatePropertyChanged(dp);
         }
+
+        private static void OnVisualStatePropertyChanged(DatePicker dp)
+        {
+
+            if (Validation.GetHasError(dp))
+            {
+                if (dp.IsKeyboardFocused)
+                {
+                    VisualStateManager.GoToState(dp, VisualStates.StateInvalidFocused, true);
+                }
+                else
+                {
+                    VisualStateManager.GoToState(dp, VisualStates.StateInvalidUnfocused, true);
+                }
+            }
+            else
+            {
+                VisualStateManager.GoToState(dp, VisualStates.StateValid, true);
+            }
+        }
+
 
         #endregion IsEnabled
 
@@ -451,6 +501,15 @@ namespace Microsoft.Windows.Controls
             }
 
             dp.OnSelectedDateChanged(new CalendarSelectionChangedEventArgs(DatePicker.SelectedDateChangedEvent, removedItems, addedItems));
+
+            DatePickerAutomationPeer peer = UIElementAutomationPeer.FromElement(dp) as DatePickerAutomationPeer;
+            // Raise the propetyChangeEvent for Value if Automation Peer exist
+            if (peer != null)
+            {
+                string addedDateString = addedDate.HasValue ? dp.DateTimeToString(addedDate.Value) : "";
+                string removedDateString = removedDate.HasValue ? dp.DateTimeToString(removedDate.Value) : "";
+                peer.RaiseValuePropertyChangedEvent(removedDateString, addedDateString);
+            }
         }
 
         private static object CoerceSelectedDate(DependencyObject d, object value)
@@ -570,12 +629,6 @@ namespace Microsoft.Windows.Controls
                     dp.SetValueNoCallback(DatePicker.SelectedDateProperty, null);
                 }
             }
-
-            DatePickerAutomationPeer peer = UIElementAutomationPeer.FromElement(dp) as DatePickerAutomationPeer;
-            // Raise the propetyChangeEvent for Value if Automation Peer exist
-            if (peer != null)
-                peer.RaiseValuePropertyChangedEvent((string)e.OldValue, (string)e.NewValue);
-
         }
 
         private static object OnCoerceText(DependencyObject dObject, object baseValue)
@@ -719,7 +772,7 @@ namespace Microsoft.Windows.Controls
         {
             if (this.SelectedDate != null)
             {
-                return this.SelectedDate.Value.ToString(DateTimeHelper.GetCurrentDateFormat());
+                return this.SelectedDate.Value.ToString(DateTimeHelper.GetDateFormat(DateTimeHelper.GetCulture(this)));
             }
             else
             {
@@ -779,6 +832,28 @@ namespace Microsoft.Windows.Controls
         #endregion Protected Methods
 
         #region Private Methods
+
+        /// <summary>
+        ///     Called when this element gets focus.
+        /// </summary>
+        private static void OnGotFocus(object sender, RoutedEventArgs e)
+        {
+            // When Datepicker gets focus move it to the TextBox
+            DatePicker picker = (DatePicker)sender;
+            if ((!e.Handled) && (picker._textBox != null))
+            {
+                if (e.OriginalSource == picker)
+                {
+                    picker._textBox.Focus();
+                    e.Handled = true;
+                }
+                else if (e.OriginalSource == picker._textBox)
+                {
+                    picker._textBox.SelectAll();
+                    e.Handled = true;
+                }
+            }
+        }
 
         private void SetValueNoCallback(DependencyProperty property, object value)
         {
@@ -859,7 +934,10 @@ namespace Microsoft.Windows.Controls
                 this.IsDropDownOpen = false;
             }
 
-            this.MoveFocus(new TraversalRequest(FocusNavigationDirection.First));
+            if (_calendar.IsKeyboardFocusWithin)
+            {
+                this.MoveFocus(new TraversalRequest(FocusNavigationDirection.First));
+            }
 
             OnCalendarClosed(new RoutedEventArgs());
         }
@@ -877,7 +955,7 @@ namespace Microsoft.Windows.Controls
             }
         }
 
-        private void CalendarDayButton_KeyDown(object sender, RoutedEventArgs e)
+        private void CalendarDayOrMonthButton_PreviewKeyDown(object sender, RoutedEventArgs e)
         {
             Calendar c = sender as Calendar;
             KeyEventArgs args = (KeyEventArgs)e;
@@ -885,7 +963,7 @@ namespace Microsoft.Windows.Controls
             Debug.Assert(c != null);
             Debug.Assert(args != null);
 
-            if ((args.Key == Key.Enter || args.Key == Key.Space || args.Key == Key.Escape) && c.DisplayMode == CalendarMode.Month)
+            if (args.Key == Key.Escape || ((args.Key == Key.Enter || args.Key == Key.Space) && c.DisplayMode == CalendarMode.Month))
             {
                 this.IsDropDownOpen = false;
                 if (args.Key == Key.Escape)
@@ -923,7 +1001,7 @@ namespace Microsoft.Windows.Controls
 
         private string DateTimeToString(DateTime d)
         {
-            DateTimeFormatInfo dtfi = DateTimeHelper.GetCurrentDateFormat();
+            DateTimeFormatInfo dtfi = DateTimeHelper.GetDateFormat(DateTimeHelper.GetCulture(this));
 
             switch (this.SelectedDateFormat)
             {
@@ -1002,7 +1080,7 @@ namespace Microsoft.Windows.Controls
             _calendar.DayButtonMouseUp += new MouseButtonEventHandler(Calendar_DayButtonMouseUp);
             _calendar.DisplayDateChanged += new EventHandler<CalendarDateChangedEventArgs>(Calendar_DisplayDateChanged);
             _calendar.SelectedDatesChanged += new EventHandler<SelectionChangedEventArgs>(Calendar_SelectedDatesChanged);
-            _calendar.DayKeyDown += new RoutedEventHandler(CalendarDayButton_KeyDown);
+            _calendar.DayOrMonthPreviewKeyDown += new RoutedEventHandler(CalendarDayOrMonthButton_PreviewKeyDown);
             _calendar.HorizontalAlignment = HorizontalAlignment.Left;
             _calendar.VerticalAlignment = VerticalAlignment.Top;
 
@@ -1041,7 +1119,7 @@ namespace Microsoft.Windows.Controls
             // TryParse is not used in order to be able to pass the exception to the TextParseError event
             try
             {
-                newSelectedDate = DateTime.Parse(text, DateTimeHelper.GetCurrentDateFormat());
+                newSelectedDate = DateTime.Parse(text, DateTimeHelper.GetDateFormat(DateTimeHelper.GetCulture(this)));
 
                 if (Calendar.IsValidDateSelection(this._calendar, newSelectedDate))
                 {
@@ -1131,6 +1209,7 @@ namespace Microsoft.Windows.Controls
                     if (!this.SelectedDate.Equals(d))
                     {
                         this.SelectedDate = d;
+                        this.DisplayDate = d.Value;
                     }
                 }
                 else
@@ -1164,7 +1243,7 @@ namespace Microsoft.Windows.Controls
 
                 if (d != null)
                 {
-                    SetValue(TextProperty, s);
+                    SetValue(TextProperty, this.DateTimeToString((DateTime)d));
                     return d;
                 }
                 else
@@ -1190,7 +1269,7 @@ namespace Microsoft.Windows.Controls
         {
             if (this._textBox != null)
             {
-                DateTimeFormatInfo dtfi = DateTimeHelper.GetCurrentDateFormat();
+                DateTimeFormatInfo dtfi = DateTimeHelper.GetDateFormat(DateTimeHelper.GetCulture(this));
                 this.SetTextInternal(string.Empty);
                 this._defaultText = string.Empty;
 

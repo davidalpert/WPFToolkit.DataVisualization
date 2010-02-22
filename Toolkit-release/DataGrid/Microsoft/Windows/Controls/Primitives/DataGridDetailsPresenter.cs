@@ -21,6 +21,7 @@ namespace Microsoft.Windows.Controls.Primitives
             DefaultStyleKeyProperty.OverrideMetadata(typeof(DataGridDetailsPresenter), new FrameworkPropertyMetadata(typeof(DataGridDetailsPresenter)));
             ContentTemplateProperty.OverrideMetadata(typeof(DataGridDetailsPresenter), new FrameworkPropertyMetadata(OnNotifyPropertyChanged, OnCoerceContentTemplate));
             ContentTemplateSelectorProperty.OverrideMetadata(typeof(DataGridDetailsPresenter), new FrameworkPropertyMetadata(OnNotifyPropertyChanged, OnCoerceContentTemplateSelector));
+            EventManager.RegisterClassHandler(typeof(DataGridDetailsPresenter), MouseLeftButtonDownEvent, new MouseButtonEventHandler(OnAnyMouseLeftButtonDownThunk), true);
         }
 
         /// <summary>
@@ -115,10 +116,13 @@ namespace Microsoft.Windows.Controls.Primitives
             return false;
         }
 
-        protected override void OnPreviewMouseLeftButtonDown(System.Windows.Input.MouseButtonEventArgs e)
+        private static void OnAnyMouseLeftButtonDownThunk(object sender, MouseButtonEventArgs e)
         {
-            base.OnPreviewMouseLeftButtonDown(e);
+            ((DataGridDetailsPresenter)sender).OnAnyMouseLeftButtonDown(e);
+        }
 
+        private void OnAnyMouseLeftButtonDown(System.Windows.Input.MouseButtonEventArgs e)
+        {
             // Ignore actions if the button down arises from a different visual tree
             if (!IsInVisualSubTree(e.OriginalSource as DependencyObject))
             {
@@ -146,7 +150,7 @@ namespace Microsoft.Windows.Controls.Primitives
                     dataGridOwner.ScrollIntoView(rowOwner.Item, dataGridOwner.ColumnFromDisplayIndex(0));
                 }
 
-                dataGridOwner.HandleSelectionForRowHeaderAndDetailsInput(rowOwner, /* startDragging = */ true);
+                dataGridOwner.HandleSelectionForRowHeaderAndDetailsInput(rowOwner, /* startDragging = */ Mouse.Captured == null);
             }
         }
 

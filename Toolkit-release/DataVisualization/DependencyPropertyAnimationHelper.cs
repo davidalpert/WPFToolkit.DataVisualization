@@ -66,7 +66,15 @@ namespace System.Windows.Controls.DataVisualization
 
             if (storyBoard != null)
             {
+#if SILVERLIGHT
+                // Save current value
+                object currentValue = target.GetValue(animatingDependencyProperty);
+#endif
                 storyBoard.Stop();
+#if SILVERLIGHT
+                // Restore that value so it doesn't snap back to its starting value
+                target.SetValue(animatingDependencyProperty, currentValue);
+#endif
                 target.Resources.Remove(GetStoryboardKey(propertyPath));
             }
 
@@ -127,7 +135,7 @@ namespace System.Windows.Controls.DataVisualization
                 if (ValueHelper.TryConvert(fromValue, out fromDoubleValue) && ValueHelper.TryConvert(toValue, out toDoubleValue))
                 {
                     DoubleAnimation doubleAnimation = new DoubleAnimation();
-#if SILVERLIGHT
+#if !NO_EASING_FUNCTIONS
                     doubleAnimation.EasingFunction = easingFunction;
 #endif
                     doubleAnimation.Duration = durationTimeSpan;

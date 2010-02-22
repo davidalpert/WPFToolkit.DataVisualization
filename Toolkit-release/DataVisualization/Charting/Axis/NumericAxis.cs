@@ -87,7 +87,7 @@ namespace System.Windows.Controls.DataVisualization.Charting
         /// <summary>
         /// MaximumProperty property changed handler.
         /// </summary>
-        /// <param name="d">BaseNumericAxis that changed its Maximum.</param>
+        /// <param name="d">NumericAxis that changed its Maximum.</param>
         /// <param name="e">Event arguments.</param>
         private static void OnMaximumPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
@@ -99,7 +99,7 @@ namespace System.Windows.Controls.DataVisualization.Charting
         /// <summary>
         /// MaximumProperty property changed handler.
         /// </summary>
-        /// <param name="newValue">New value.</param>        
+        /// <param name="newValue">New value.</param>
         protected virtual void OnMaximumPropertyChanged(double? newValue)
         {
             this.ProtectedMaximum = newValue;
@@ -130,7 +130,7 @@ namespace System.Windows.Controls.DataVisualization.Charting
         /// <summary>
         /// MinimumProperty property changed handler.
         /// </summary>
-        /// <param name="d">BaseNumericAxis that changed its Minimum.</param>
+        /// <param name="d">NumericAxis that changed its Minimum.</param>
         /// <param name="e">Event arguments.</param>
         private static void OnMinimumPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
@@ -142,7 +142,7 @@ namespace System.Windows.Controls.DataVisualization.Charting
         /// <summary>
         /// MinimumProperty property changed handler.
         /// </summary>
-        /// <param name="newValue">New value.</param>        
+        /// <param name="newValue">New value.</param>
         protected virtual void OnMinimumPropertyChanged(double? newValue)
         {
             this.ProtectedMinimum = newValue;
@@ -186,7 +186,7 @@ namespace System.Windows.Controls.DataVisualization.Charting
         /// ExtendRangeToOriginProperty property changed handler.
         /// </summary>
         /// <param name="oldValue">Old value.</param>
-        /// <param name="newValue">New value.</param>        
+        /// <param name="newValue">New value.</param>
         protected virtual void OnExtendRangeToOriginPropertyChanged(bool oldValue, bool newValue)
         {
             this.ActualRange = this.OverrideDataRange(this.ActualRange);
@@ -202,9 +202,9 @@ namespace System.Windows.Controls.DataVisualization.Charting
         }
 
         /// <summary>
-        /// Instantiates a new instance of the BaseNumericAxis class.
+        /// Instantiates a new instance of the NumericAxis class.
         /// </summary>
-        internal NumericAxis()
+        protected NumericAxis()
         {
         }
 

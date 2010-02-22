@@ -61,7 +61,7 @@ namespace Microsoft.Windows.Controls.Design
                     builder.AddCustomAttributes(new DefaultEventAttribute("SelectedDatesChanged"));
 
                     // Add the Calendar properties to a Calendar category
-                    CategoryAttribute calendarCategory = new CategoryAttribute("Calendar");
+                    CategoryAttribute calendarCategory = new CategoryAttribute(SR.Get(SRID.CalendarCategoryTitle));
                     builder.AddCustomAttributes("BlackoutDates", calendarCategory);
                     builder.AddCustomAttributes(Calendar.CalendarButtonStyleProperty, calendarCategory);
                     builder.AddCustomAttributes(Calendar.CalendarDayButtonStyleProperty, calendarCategory);
@@ -122,8 +122,8 @@ namespace Microsoft.Windows.Controls.Design
 
                     // Enable addition of RowValidationRules
                     builder.AddCustomAttributes("RowValidationRules", new NewItemTypesAttribute(typeof(ExceptionValidationRule), typeof(DataErrorValidationRule)));
-                    
-                    CategoryAttribute columnsCategory = new CategoryAttribute("Columns");
+
+                    CategoryAttribute columnsCategory = new CategoryAttribute(SR.Get(SRID.ColumnsCategoryTitle));
                     builder.AddCustomAttributes(DataGrid.AutoGenerateColumnsProperty, columnsCategory);
                     builder.AddCustomAttributes(DataGrid.CanUserReorderColumnsProperty, columnsCategory);
                     builder.AddCustomAttributes(DataGrid.CanUserResizeColumnsProperty, columnsCategory);
@@ -135,7 +135,7 @@ namespace Microsoft.Windows.Controls.Design
                     builder.AddCustomAttributes(DataGrid.MaxColumnWidthProperty, columnsCategory);
                     builder.AddCustomAttributes(DataGrid.MinColumnWidthProperty, columnsCategory);
 
-                    CategoryAttribute rowsCategory = new CategoryAttribute("Rows");
+                    CategoryAttribute rowsCategory = new CategoryAttribute(SR.Get(SRID.RowsCategoryTitle));
                     builder.AddCustomAttributes(DataGrid.ItemsSourceProperty, rowsCategory);
                     builder.AddCustomAttributes(DataGrid.AlternationCountProperty, rowsCategory);
                     builder.AddCustomAttributes(DataGrid.AlternatingRowBackgroundProperty, rowsCategory);
@@ -154,7 +154,7 @@ namespace Microsoft.Windows.Controls.Design
                     builder.AddCustomAttributes(DataGrid.SelectionModeProperty, rowsCategory);
                     builder.AddCustomAttributes(DataGrid.SelectionUnitProperty, rowsCategory);
 
-                    CategoryAttribute headersCategory = new CategoryAttribute("Headers");
+                    CategoryAttribute headersCategory = new CategoryAttribute(SR.Get(SRID.HeadersCategoryTitle));
                     builder.AddCustomAttributes(DataGrid.ColumnHeaderHeightProperty, headersCategory);
                     builder.AddCustomAttributes(DataGrid.ColumnHeaderStyleProperty, headersCategory);
                     builder.AddCustomAttributes(DataGrid.HeadersVisibilityProperty, headersCategory);
@@ -162,7 +162,7 @@ namespace Microsoft.Windows.Controls.Design
                     builder.AddCustomAttributes(DataGrid.RowHeaderStyleProperty, headersCategory);
                     builder.AddCustomAttributes(DataGrid.RowHeaderWidthProperty, headersCategory);
 
-                    CategoryAttribute gridLinesCategory = new CategoryAttribute("Grid Lines");
+                    CategoryAttribute gridLinesCategory = new CategoryAttribute(SR.Get(SRID.GridLinesCategoryTitle));
                     builder.AddCustomAttributes(DataGrid.GridLinesVisibilityProperty, gridLinesCategory);
                     builder.AddCustomAttributes(DataGrid.HorizontalGridLinesBrushProperty, gridLinesCategory);
                     builder.AddCustomAttributes(DataGrid.VerticalGridLinesBrushProperty, gridLinesCategory);
@@ -199,7 +199,7 @@ namespace Microsoft.Windows.Controls.Design
                     // This looks like a bug in Blend
                     // So for Blend leave the sort properties in "Misc" and then these in Header - Sort category moved to 
                     // VS metadata
-                    CategoryAttribute headerCategory = new CategoryAttribute("Header");
+                    CategoryAttribute headerCategory = new CategoryAttribute(SR.Get(SRID.HeaderCategoryTitle));
                     builder.AddCustomAttributes(DataGridColumn.HeaderProperty, headerCategory);
                     builder.AddCustomAttributes(DataGridColumn.HeaderStringFormatProperty, headerCategory);
                     builder.AddCustomAttributes(DataGridColumn.HeaderStyleProperty, headerCategory);
@@ -257,7 +257,7 @@ namespace Microsoft.Windows.Controls.Design
                 typeof(DataGridTextColumn), 
                 delegate(AttributeCallbackBuilder builder)
                 {
-                    CategoryAttribute textCategory = new CategoryAttribute("Text");
+                    CategoryAttribute textCategory = new CategoryAttribute(SR.Get(SRID.TextCategoryTitle));
                     builder.AddCustomAttributes(DataGridTextColumn.FontStyleProperty, textCategory);
                     builder.AddCustomAttributes(DataGridTextColumn.FontFamilyProperty, textCategory);
                     builder.AddCustomAttributes(DataGridTextColumn.FontSizeProperty, textCategory);
@@ -288,7 +288,7 @@ namespace Microsoft.Windows.Controls.Design
                     builder.AddCustomAttributes(new DefaultEventAttribute("SelectedDateChanged"));
 
                     // Add the Calendar properties to a Calendar category
-                    CategoryAttribute datePickerCategory = new CategoryAttribute("DatePicker");
+                    CategoryAttribute datePickerCategory = new CategoryAttribute(SR.Get(SRID.DatePickerCategoryTitle));
                     builder.AddCustomAttributes("BlackoutDates", datePickerCategory);
                     builder.AddCustomAttributes(DatePicker.CalendarStyleProperty, datePickerCategory);
                     builder.AddCustomAttributes(DatePicker.DisplayDateEndProperty, datePickerCategory);

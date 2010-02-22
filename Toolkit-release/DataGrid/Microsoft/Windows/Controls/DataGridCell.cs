@@ -41,6 +41,9 @@ namespace Microsoft.Windows.Controls
             SnapsToDevicePixelsProperty.OverrideMetadata(typeof(DataGridCell), new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.AffectsArrange));
 
             EventManager.RegisterClassHandler(typeof(DataGridCell), MouseLeftButtonDownEvent, new MouseButtonEventHandler(OnAnyMouseLeftButtonDownThunk), true);
+            
+            EventManager.RegisterClassHandler(typeof(DataGridCell), LostFocusEvent, new RoutedEventHandler(OnAnyLostFocus), true);
+            EventManager.RegisterClassHandler(typeof(DataGridCell), GotFocusEvent, new RoutedEventHandler(OnAnyGotFocus), true);
         }
 
         /// <summary>
@@ -437,15 +440,32 @@ namespace Microsoft.Windows.Controls
 
         }
 
-        /// <summary>
-        ///     An event reporting that the IsKeyboardFocusWithin property changed.
-        /// </summary>
-        protected override void OnIsKeyboardFocusWithinChanged(DependencyPropertyChangedEventArgs e)
+        private static void OnAnyLostFocus(object sender, RoutedEventArgs e)
         {
-            DataGrid owner = DataGridOwner;
-            if (owner != null)
+            // Get the ancestor cell of old focused element.
+            // Set DataGrid.FocusedCell to null, if the cell doesn't
+            // have keyboard focus.
+            DataGridCell cell = DataGridHelper.FindVisualParent<DataGridCell>(e.OriginalSource as UIElement);
+            if (cell != null && cell == sender)
             {
-                owner.CellIsKeyboardFocusWithinChanged(this, (bool)e.NewValue);
+                DataGrid owner = cell.DataGridOwner;
+                if (owner != null && !cell.IsKeyboardFocusWithin && owner.FocusedCell == cell)
+                {
+                    owner.FocusedCell = null;
+                }
+            }
+        }
+
+        private static void OnAnyGotFocus(object sender, RoutedEventArgs e)
+        {
+            DataGridCell cell = DataGridHelper.FindVisualParent<DataGridCell>(e.OriginalSource as UIElement);
+            if (cell != null && cell == sender)
+            {
+                DataGrid owner = cell.DataGridOwner;
+                if (owner != null)
+                {
+                    owner.FocusedCell = cell;
+                }
             }
         }
 
@@ -733,7 +753,9 @@ namespace Microsoft.Windows.Controls
         private void OnAnyMouseLeftButtonDown(MouseButtonEventArgs e)
         {
             bool focusWithin = IsKeyboardFocusWithin;
-            if (focusWithin && !e.Handled && !IsEditing && !IsReadOnly && IsSelected)
+            bool isCtrlKeyPressed = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
+
+            if (focusWithin && !isCtrlKeyPressed && !e.Handled && !IsEditing && !IsReadOnly && IsSelected)
             {
                 // The cell is focused and there are no other special selection gestures,
                 // enter edit mode.
@@ -749,7 +771,7 @@ namespace Microsoft.Windows.Controls
                     e.Handled = true;
                 }
             }
-            else if (!focusWithin || !IsSelected)
+            else if (!focusWithin || !IsSelected || isCtrlKeyPressed)
             {
                 if (!focusWithin)
                 {

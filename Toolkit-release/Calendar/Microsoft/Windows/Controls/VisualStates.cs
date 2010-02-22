@@ -111,6 +111,28 @@ namespace Microsoft.Windows.Controls
         public const string GroupActive = "ActiveStates";
         #endregion GroupActive
 
+        #region GroupValidation
+        /// <summary>
+        /// Valid state
+        /// </summary>
+        public const string StateValid = "Valid";
+
+        /// <summary>
+        /// InvalidFocused state
+        /// </summary>
+        public const string StateInvalidFocused = "InvalidFocused";
+
+        /// <summary>
+        /// InvalidUnfocused state
+        /// </summary>
+        public const string StateInvalidUnfocused = "InvalidUnfocused";
+
+        /// <summary>
+        /// Validation state group
+        /// </summary>
+        public const string GroupValidation = "ValidationStates";
+        #endregion GroupValidation
+
         #region GroupWatermark
         /// <summary>
         /// Unwatermarked state

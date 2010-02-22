@@ -303,9 +303,14 @@ namespace Microsoft.Windows.Controls
         /// <param name="newDisplayIndex">the new display index of the column</param>
         private void OnColumnDisplayIndexChanged(DataGridColumn column, int oldDisplayIndex, int newDisplayIndex)
         {
-            // Handle ClearValue.  -1 is the default value and really means 'DisplayIndex should be the index of the column in the column collection'.
-            // We immediately replace the display index without notifying anyone.
-            if (oldDisplayIndex == -1 || _isClearingDisplayIndex)
+            int originalOldDisplayIndex = oldDisplayIndex;
+            if (!_displayIndexMapInitialized)
+            {
+                InitializeDisplayIndexMap(column, oldDisplayIndex, out oldDisplayIndex);
+            }
+
+            // Handle ClearValue.
+            if (_isClearingDisplayIndex)
             {
                 // change from -1 to the new value; the OnColumnDisplayIndexChanged further down the stack (from old value to -1) will handle
                 // notifying the user and updating columns.
@@ -322,7 +327,13 @@ namespace Microsoft.Windows.Controls
 
             // Our coerce value callback should have validated the DisplayIndex.  Fire the virtual.
             Debug.Assert(newDisplayIndex >= 0 && newDisplayIndex < Count, "The new DisplayIndex should have already been validated");
-            DataGridOwner.OnColumnDisplayIndexChanged(new DataGridColumnEventArgs(column));
+
+            // -1 is the default value and really means 'DisplayIndex should be the index of the column in the column collection'.
+            // We immediately replace the display index without notifying anyone.
+            if (originalOldDisplayIndex != -1)
+            {
+                DataGridOwner.OnColumnDisplayIndexChanged(new DataGridColumnEventArgs(column));
+            }
 
             // Call our helper to walk through all other columns and adjust their display indices.
             UpdateDisplayIndexForChangedColumn(oldDisplayIndex, newDisplayIndex);
@@ -446,6 +457,13 @@ namespace Microsoft.Windows.Controls
         // It needs to populate DisplayIndexMap and validate the DisplayIndex of all columns
         internal void InitializeDisplayIndexMap()
         {
+            int resultIndex = -1;
+            InitializeDisplayIndexMap(null, -1, out resultIndex);
+        }
+
+        private void InitializeDisplayIndexMap(DataGridColumn changingColumn, int oldDisplayIndex, out int resultDisplayIndex)
+        {
+            resultDisplayIndex = oldDisplayIndex;
             if (_displayIndexMapInitialized)
             {
                 return;
@@ -457,6 +475,11 @@ namespace Microsoft.Windows.Controls
             int columnCount = Count;
             Dictionary<int, int> assignedDisplayIndexMap = new Dictionary<int, int>(); // <DisplayIndex, ColumnIndex>
 
+            if (changingColumn != null && oldDisplayIndex >= columnCount)
+            {
+                throw new ArgumentOutOfRangeException("displayIndex", oldDisplayIndex, SR.Get(SRID.DataGrid_ColumnDisplayIndexOutOfRange, changingColumn.Header));
+            }
+
             // First loop:
             // 1. Validate all columns DisplayIndex
             // 2. Add columns with DisplayIndex!=default to the assignedDisplayIndexMap
@@ -466,6 +489,12 @@ namespace Microsoft.Windows.Controls
                 int currentColumnDisplayIndex = currentColumn.DisplayIndex;
                 
                 ValidateDisplayIndex(currentColumn, currentColumnDisplayIndex);
+
+                if (currentColumn == changingColumn)
+                {
+                    currentColumnDisplayIndex = oldDisplayIndex;
+                }
+
                 if (currentColumnDisplayIndex >= 0)
                 {
                     if (assignedDisplayIndexMap.ContainsKey(currentColumnDisplayIndex))
@@ -484,8 +513,16 @@ namespace Microsoft.Windows.Controls
             {
                 DataGridColumn currentColumn = this[columnIndex];
                 int currentColumnDisplayIndex = currentColumn.DisplayIndex;
-                
                 bool hasDefaultDisplayIndex = DataGridHelper.IsDefaultValue(currentColumn, DataGridColumn.DisplayIndexProperty);
+                if (currentColumn == changingColumn)
+                {
+                    if (oldDisplayIndex == -1)
+                    {
+                        hasDefaultDisplayIndex = true;
+                    }
+                    currentColumnDisplayIndex = oldDisplayIndex;
+                }
+
                 if (hasDefaultDisplayIndex)
                 {
                     while (assignedDisplayIndexMap.ContainsKey(nextAvailableColumnIndex))
@@ -495,6 +532,10 @@ namespace Microsoft.Windows.Controls
 
                     CoerceDefaultDisplayIndex(currentColumn, nextAvailableColumnIndex);
                     assignedDisplayIndexMap.Add(nextAvailableColumnIndex, columnIndex);
+                    if (currentColumn == changingColumn)
+                    {
+                        resultDisplayIndex = nextAvailableColumnIndex;
+                    }
                     nextAvailableColumnIndex++;
                 }
             }
@@ -847,7 +888,7 @@ namespace Microsoft.Windows.Controls
         private double ComputeStarColumnWidths(double availableStarSpace)
         {
             Debug.Assert(
-                !DoubleUtil.IsNaN(availableStarSpace) && !Double.IsNegativeInfinity(availableStarSpace) && !Double.IsPositiveInfinity(availableStarSpace),
+                !DoubleUtil.IsNaN(availableStarSpace) && !Double.IsNegativeInfinity(availableStarSpace),
                 "availableStarSpace is not valid");
 
             List<DataGridColumn> unResolvedColumns = new List<DataGridColumn>();
@@ -1095,6 +1136,20 @@ namespace Microsoft.Windows.Controls
             else
             {
                 ExpandAllColumnWidthsToDesiredValue();
+            }
+
+            if (RefreshAutoWidthColumns)
+            {
+                foreach (DataGridColumn column in this)
+                {
+                    if (column.Width.IsAuto)
+                    {
+                        // This operation resets desired and display widths to 0.0.
+                        column.Width = DataGridLength.Auto;
+                    }
+                }
+
+                RefreshAutoWidthColumns = false;
             }
 
             _columnWidthsComputationPending = false;
@@ -1449,11 +1504,14 @@ namespace Microsoft.Windows.Controls
                 // reuse unused space
                 horizontalChange = TakeAwayUnusedSpaceOnColumnPositiveResize(horizontalChange, resizingColumnIndex, retainAuto);
 
+                // reducing columns to the right which are greater than the desired size
+                horizontalChange = RecomputeNonStarColumnWidthsOnColumnPositiveResize(horizontalChange, resizingColumnIndex, retainAuto, true);
+
                 // reducing star columns to right
                 horizontalChange = RecomputeStarColumnWidthsOnColumnPositiveResize(horizontalChange, resizingColumnIndex, perStarWidth, retainAuto);
 
                 // reducing columns to the right which are greater than the min size
-                horizontalChange = RecomputeNonStarColumnWidthsOnColumnPositiveResize(horizontalChange, resizingColumnIndex, retainAuto);
+                horizontalChange = RecomputeNonStarColumnWidthsOnColumnPositiveResize(horizontalChange, resizingColumnIndex, retainAuto, false);
             }
             else
             {
@@ -1589,7 +1647,8 @@ namespace Microsoft.Windows.Controls
         private double RecomputeNonStarColumnWidthsOnColumnPositiveResize(
             double horizontalChange,
             int resizingColumnIndex,
-            bool retainAuto)
+            bool retainAuto,
+            bool onlyShrinkToDesiredWidth)
         {
             if (DoubleUtil.GreaterThan(horizontalChange, 0.0))
             {
@@ -1605,10 +1664,11 @@ namespace Microsoft.Windows.Controls
 
                     DataGridLength width = column.Width;
                     double minWidth = column.MinWidth;
+                    double columnExcessWidth = onlyShrinkToDesiredWidth ? width.DisplayValue - Math.Max(width.DesiredValue, column.MinWidth) : width.DisplayValue - column.MinWidth;
+
                     if (!width.IsStar &&
-                        DoubleUtil.GreaterThan(width.DisplayValue, minWidth))
+                        DoubleUtil.GreaterThan(columnExcessWidth, 0.0))
                     {
-                        double columnExcessWidth = width.DisplayValue - minWidth;
                         if (DoubleUtil.GreaterThanOrClose(totalExcessWidth + columnExcessWidth, horizontalChange))
                         {
                             columnExcessWidth = horizontalChange - totalExcessWidth;
@@ -1643,10 +1703,13 @@ namespace Microsoft.Windows.Controls
             if (HasVisibleStarColumnsInternal(out perStarWidth))
             {
                 // increasing columns to the right which are less than the desired size
-                horizontalChange = RecomputeNonStarColumnWidthsOnColumnNegativeResize(horizontalChange, resizingColumnIndex, retainAuto);
+                horizontalChange = RecomputeNonStarColumnWidthsOnColumnNegativeResize(horizontalChange, resizingColumnIndex, retainAuto, false);
 
                 // increasing star columns to the right
                 horizontalChange = RecomputeStarColumnWidthsOnColumnNegativeResize(horizontalChange, resizingColumnIndex, perStarWidth, retainAuto);
+
+                // increasing columns to the right which are less than the maximum size
+                horizontalChange = RecomputeNonStarColumnWidthsOnColumnNegativeResize(horizontalChange, resizingColumnIndex, retainAuto, true);
 
                 if (DoubleUtil.GreaterThan(horizontalChange, 0.0))
                 {
@@ -1670,7 +1733,8 @@ namespace Microsoft.Windows.Controls
         private double RecomputeNonStarColumnWidthsOnColumnNegativeResize(
             double horizontalChange,
             int resizingColumnIndex,
-            bool retainAuto)
+            bool retainAuto,
+            bool expandBeyondDesiredWidth)
         {
             if (DoubleUtil.GreaterThan(horizontalChange, 0.0))
             {
@@ -1685,11 +1749,12 @@ namespace Microsoft.Windows.Controls
                     }
 
                     DataGridLength width = column.Width;
+                    double maxColumnResizeWidth = expandBeyondDesiredWidth ? column.MaxWidth : Math.Min(width.DesiredValue, column.MaxWidth);
+
                     if (!width.IsStar &&
-                        DoubleUtil.LessThan(width.DisplayValue, width.DesiredValue) &&
-                        !DoubleUtil.AreClose(width.DisplayValue, column.MaxWidth))
+                        DoubleUtil.LessThan(width.DisplayValue, maxColumnResizeWidth))
                     {
-                        double columnLagWidth = width.DesiredValue - width.DisplayValue;
+                        double columnLagWidth = maxColumnResizeWidth - width.DisplayValue;
                         if (DoubleUtil.GreaterThanOrClose(totalLagWidth + columnLagWidth, horizontalChange))
                         {
                             columnLagWidth = horizontalChange - totalLagWidth;
@@ -2426,6 +2491,11 @@ namespace Microsoft.Windows.Controls
                 return -1;
             }
         }
+
+        /// <summary>
+        ///     Flag set when an operation has invalidated auto-width columns so they are no longer expected to be their desired width.
+        /// </summary>
+        internal bool RefreshAutoWidthColumns { get; set; }
 
         #endregion
 

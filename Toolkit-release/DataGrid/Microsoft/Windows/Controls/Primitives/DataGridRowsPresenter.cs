@@ -21,15 +21,6 @@ namespace Microsoft.Windows.Controls.Primitives
     /// </summary>
     public class DataGridRowsPresenter : VirtualizingStackPanel
     {
-        #region Automation
-
-        protected override System.Windows.Automation.Peers.AutomationPeer OnCreateAutomationPeer()
-        {
-            return new Microsoft.Windows.Automation.Peers.DataGridRowsPresenterAutomationPeer(this);
-        }
-
-        #endregion
-
         #region Scroll Methods
 
         /// <summary>

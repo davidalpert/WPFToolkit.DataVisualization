@@ -122,8 +122,9 @@ namespace Microsoft.Windows.Automation.Peers
         internal void RaiseSelectionEvents(SelectionChangedEventArgs e)
         {
             int numSelected = this.OwningCalendar.SelectedDates.Count;
+            int numAdded = e.AddedItems.Count;
 
-            if (AutomationPeer.ListenerExists(AutomationEvents.SelectionItemPatternOnElementSelected) && numSelected == 1)
+            if (AutomationPeer.ListenerExists(AutomationEvents.SelectionItemPatternOnElementSelected) && numSelected == 1 && numAdded == 1)
             {
                 CalendarDayButton selectedButton = this.OwningCalendar.FindDayButtonFromDay((DateTime)e.AddedItems[0]);
 

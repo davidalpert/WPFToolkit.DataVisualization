@@ -6,6 +6,7 @@ using System.Windows.Automation;
 using System.Windows.Automation.Peers;
 using System.Windows.Automation.Provider;
 using System.Windows.Controls;
+using System.Windows.Data;
 using Microsoft.Windows.Controls;
 
 namespace Microsoft.Windows.Automation.Peers
@@ -75,7 +76,18 @@ namespace Microsoft.Windows.Automation.Peers
         ///
         protected override List<AutomationPeer> GetChildrenCore()
         {
-            return (this.OwningRowPeer != null) ? this.OwningRowPeer.GetChildren() : GetCellItemPeers();
+            AutomationPeer wrapperPeer = this.OwningRowPeer;
+
+            if (wrapperPeer != null)
+            {
+                // We need to update children manually since wrapperPeer is not in the Automation Tree
+                // When containers are recycled the visual (DataGridRow) will point to a new item. 
+                // WrapperPeer's children are the peers for DataGridRowHeader, DataGridCells and DataGridRowDetails.
+                wrapperPeer.ResetChildrenCache();
+                return wrapperPeer.GetChildren();
+            }
+
+            return GetCellItemPeers();
         }
         
         ///
@@ -149,8 +161,13 @@ namespace Microsoft.Windows.Automation.Peers
 
                 case PatternInterface.ScrollItem:
                 case PatternInterface.Selection:
-                case PatternInterface.SelectionItem:
                     return this;
+                case PatternInterface.SelectionItem:
+                    if (IsRowSelectionUnit)
+                    {
+                        return this;
+                    }
+                    break;
             }
 
             return null;
@@ -251,9 +268,11 @@ namespace Microsoft.Windows.Automation.Peers
                 }
             }
 
-            if (!success)
+            // Invoke on a NewItemPlaceholder row creates a new item.
+            // BeginEdit on a NewItemPlaceholder row returns false.
+            if (!success && !IsNewItemPlaceholder)
             {
-                throw new InvalidOperationException();
+                throw new InvalidOperationException(SR.Get(SRID.DataGrid_AutomationInvokeFailed));
             } 
         }
 
@@ -288,6 +307,11 @@ namespace Microsoft.Windows.Automation.Peers
 
         void ISelectionItemProvider.AddToSelection()
         {
+            if (!IsRowSelectionUnit)
+            {
+                throw new InvalidOperationException(SR.Get(SRID.DataGridRow_CannotSelectRowWhenCells));
+            }
+
             // If item is already selected - do nothing
             if (this.OwningDataGrid.SelectedItems.Contains(_item))
             {
@@ -310,6 +334,11 @@ namespace Microsoft.Windows.Automation.Peers
 
         void ISelectionItemProvider.RemoveFromSelection()
         {
+            if (!IsRowSelectionUnit)
+            {
+                throw new InvalidOperationException(SR.Get(SRID.DataGridRow_CannotSelectRowWhenCells));
+            }
+
             EnsureEnabled();
 
             if (this.OwningDataGrid.SelectedItems.Contains(_item))
@@ -320,6 +349,11 @@ namespace Microsoft.Windows.Automation.Peers
 
         void ISelectionItemProvider.Select()
         {
+            if (!IsRowSelectionUnit)
+            {
+                throw new InvalidOperationException(SR.Get(SRID.DataGridRow_CannotSelectRowWhenCells));
+            }
+
             EnsureEnabled();
 
             this.OwningDataGrid.SelectedItem = _item;
@@ -348,6 +382,11 @@ namespace Microsoft.Windows.Automation.Peers
         IRawElementProviderSimple[] ISelectionProvider.GetSelection()
         {
             DataGrid dataGrid = this.OwningDataGrid;
+            if (dataGrid == null)
+            {
+                return null;
+            }
+
             int rowIndex = dataGrid.Items.IndexOf(_item);
 
             // If row has selection
@@ -436,6 +475,23 @@ namespace Microsoft.Windows.Automation.Peers
         #endregion
 
         #region Private Properties
+        private bool IsRowSelectionUnit
+        {
+            get
+            {
+                return (this.OwningDataGrid != null &&
+                    (this.OwningDataGrid.SelectionUnit == DataGridSelectionUnit.FullRow ||
+                    this.OwningDataGrid.SelectionUnit == DataGridSelectionUnit.CellOrRowHeader));
+            }
+        }
+
+        private bool IsNewItemPlaceholder
+        {
+            get
+            {
+                return (_item == CollectionView.NewItemPlaceholder) || (_item == DataGrid.NewItemPlaceholder);
+            }
+        }
 
         private DataGrid OwningDataGrid
         {

@@ -124,7 +124,7 @@ namespace Microsoft.Windows.Automation.Peers
         ///
         protected override string GetNameCore()
         {
-            return string.Format(SR.Get(SRID.DataGridCellItemAutomationPeer_NameCoreFormat), _item, _column.DisplayIndex);
+            return SR.Get(SRID.DataGridCellItemAutomationPeer_NameCoreFormat, _item, _column.DisplayIndex);
         }
 
         ///

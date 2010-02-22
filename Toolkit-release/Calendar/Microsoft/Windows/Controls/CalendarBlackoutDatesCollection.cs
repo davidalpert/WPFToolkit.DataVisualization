@@ -51,15 +51,7 @@ namespace Microsoft.Windows.Controls
         /// <returns></returns>
         public bool Contains(DateTime date)
         {
-            for (int i = 0; i < Count; i++)
-            {
-                if (DateTimeHelper.InRange(date, this[i]))
-                {
-                    return true;
-                }
-            }
-
-            return false;
+            return null != GetContainingDateRange(date);
         }
 
         /// <summary>
@@ -111,6 +103,51 @@ namespace Microsoft.Windows.Controls
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// This finds the next date that is not blacked out in a certian direction.
+        /// </summary>
+        /// <param name="requestedDate"></param>
+        /// <param name="dayInterval"></param>
+        /// <returns></returns>
+        internal DateTime? GetNonBlackoutDate(DateTime? requestedDate, int dayInterval)
+        {
+            Debug.Assert(dayInterval != 0);
+
+            DateTime? currentDate = requestedDate;
+            CalendarDateRange range = null;
+
+            if (requestedDate == null)
+            {
+                return null;
+            }
+
+            if ((range = GetContainingDateRange((DateTime)currentDate)) == null)
+            {
+                return requestedDate;
+            }
+
+            do
+            {
+                if (dayInterval > 0)
+                {
+                    // Moving Forwards.
+                    // The DateRanges require start <= end
+                    currentDate = DateTimeHelper.AddDays(range.End, dayInterval);
+
+                }
+                else
+                {
+                    //Moving backwards.
+                    currentDate = DateTimeHelper.AddDays(range.Start, dayInterval);
+                }
+
+            } while (currentDate != null && ((range = GetContainingDateRange((DateTime)currentDate)) != null));
+
+
+
+            return currentDate;
         }
 
         #endregion Public Methods
@@ -306,6 +343,26 @@ namespace Microsoft.Windows.Controls
         private bool IsValidThread()
         {
             return Thread.CurrentThread == this._dispatcherThread;
+        }
+
+        /// <summary>
+        /// Gets the DateRange that contains the date.
+        /// </summary>
+        /// <param name="date"></param>
+        /// <returns></returns>
+        private CalendarDateRange GetContainingDateRange(DateTime date)
+        {
+            if (date == null)
+                return null;
+
+            for (int i = 0; i < Count; i++)
+            {
+                if (DateTimeHelper.InRange(date, this[i]))
+                {
+                    return this[i];
+                }
+            }
+            return null;
         }
 
         #endregion Private Methods

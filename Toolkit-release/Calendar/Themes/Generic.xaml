@@ -9,19 +9,18 @@ Copyright (C) Microsoft Corporation.  All rights reserved.
     xmlns:primitives="clr-namespace:Microsoft.Windows.Controls.Primitives"
     xmlns:vsm="clr-namespace:System.Windows">
 
+    <LinearGradientBrush x:Key="{ComponentResourceKey TypeInTargetAssembly={x:Type local:Calendar}, ResourceId=CalendarBackgroundBrush}"
+    	x:Shared="false" StartPoint="0.5,0" EndPoint="0.5,1">
+        <GradientStop Color="{DynamicResource {x:Static SystemColors.ActiveCaptionColorKey}}" Offset="0"/>
+        <GradientStop Color="{DynamicResource {x:Static SystemColors.ActiveCaptionColorKey}}" Offset="0.16"/>
+        <GradientStop Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" Offset="0.16"/>
+        <GradientStop Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" Offset="1"/>
+    </LinearGradientBrush>
+
     <!--Calendar-->
     <Style TargetType="local:Calendar">
-        <Setter Property="Foreground" Value="#FF333333" />        
-        <Setter Property="Background">
-            <Setter.Value>
-                <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
-                    <GradientStop Color="#FFE4EAF0" Offset="0"/>
-                    <GradientStop Color="#FFECF0F4" Offset="0.16"/>
-                    <GradientStop Color="#FFFCFCFD" Offset="0.16"/>
-                    <GradientStop Color="#FFFFFFFF" Offset="1"/>
-                </LinearGradientBrush>
-            </Setter.Value>
-        </Setter>
+        <Setter Property="Foreground" Value="#FF333333" />
+        <Setter Property="Background" Value="{DynamicResource {ComponentResourceKey TypeInTargetAssembly={x:Type local:Calendar}, ResourceId=CalendarBackgroundBrush}}" />
         <Setter Property="BorderBrush">
             <Setter.Value>
                 <LinearGradientBrush EndPoint="0.5,1" StartPoint="0.5,0">
@@ -50,6 +49,101 @@ Copyright (C) Microsoft Corporation.  All rights reserved.
         </Setter>
     </Style>
 
+    <!-- Start: Previous button template -->
+    <ControlTemplate x:Key="PreviousButtonTemplate" TargetType="Button">
+        <Grid Cursor="Hand">
+            <vsm:VisualStateManager.VisualStateGroups>
+                <vsm:VisualStateGroup x:Name="CommonStates">
+                    <vsm:VisualState x:Name="Normal" />
+                    <vsm:VisualState x:Name="MouseOver">
+                        <Storyboard>
+                            <ColorAnimation Storyboard.TargetName="TextColor" Storyboard.TargetProperty="Color" To="#FF73A9D8" Duration="0" />
+                        </Storyboard>
+                    </vsm:VisualState>
+                    <vsm:VisualState x:Name="Disabled">
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetName="TextColor" Storyboard.TargetProperty="Opacity" To=".5" Duration="0" />
+                        </Storyboard>
+                    </vsm:VisualState>
+                </vsm:VisualStateGroup>
+            </vsm:VisualStateManager.VisualStateGroups>
+            <Rectangle Fill="#11E5EBF1" Stretch="Fill" Opacity="1"/>
+            <Grid>
+                <Path Margin="14,-6,0,0" Height="10" Width="6" VerticalAlignment="Center" HorizontalAlignment="Left" Stretch="Fill" Data="M288.75,232.25 L288.75,240.625 L283,236.625 z">
+                    <Path.Fill>
+                        <SolidColorBrush x:Name="TextColor" Color="#FF333333" />
+                    </Path.Fill>
+                </Path>
+            </Grid>
+        </Grid>
+    </ControlTemplate>
+
+    <!-- End: Previous button template -->
+
+    <!-- Start: Next button template -->
+    <ControlTemplate x:Key="NextButtonTemplate" TargetType="Button">
+        <Grid Cursor="Hand">
+            <vsm:VisualStateManager.VisualStateGroups>
+                <vsm:VisualStateGroup x:Name="CommonStates">
+                    <vsm:VisualState x:Name="Normal" />
+                    <vsm:VisualState x:Name="MouseOver">
+                        <Storyboard>
+                            <ColorAnimation Storyboard.TargetName="TextColor" Storyboard.TargetProperty="Color" To="#FF73A9D8" Duration="0" />
+                        </Storyboard>
+                    </vsm:VisualState>
+                    <vsm:VisualState x:Name="Disabled">
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetName="TextColor" Storyboard.TargetProperty="Opacity" To=".5" Duration="0" />
+                        </Storyboard>
+                    </vsm:VisualState>
+                </vsm:VisualStateGroup>
+            </vsm:VisualStateManager.VisualStateGroups>
+            <Rectangle Fill="#11E5EBF1" Stretch="Fill" Opacity="1"/>
+            <Grid>
+                <Path Margin="0,-6,14,0" Height="10" Width="6" VerticalAlignment="Center" HorizontalAlignment="Right" Stretch="Fill" Data="M282.875,231.875 L282.875,240.375 L288.625,236 z">
+                    <Path.Fill>
+                        <SolidColorBrush x:Name="TextColor" Color="#FF333333" />
+                    </Path.Fill>
+                </Path>
+            </Grid>
+        </Grid>
+    </ControlTemplate>
+
+    <!-- End: Next button template -->
+
+    <!-- Start: Header button template -->
+    <ControlTemplate x:Key="HeaderButtonTemplate" TargetType="Button">
+        <Grid Cursor="Hand">
+            <vsm:VisualStateManager.VisualStateGroups>
+                <vsm:VisualStateGroup x:Name="CommonStates">
+                    <vsm:VisualState x:Name="Normal" />
+                    <vsm:VisualState x:Name="MouseOver">
+                        <Storyboard>
+                            <ColorAnimation Storyboard.TargetName="TextColor" Storyboard.TargetProperty="Color" To="#FF73A9D8" Duration="0" />
+                        </Storyboard>
+                    </vsm:VisualState>
+                    <vsm:VisualState x:Name="Disabled">
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetName="buttonContent" Storyboard.TargetProperty="Opacity" To=".5" Duration="0" />
+                        </Storyboard>
+                    </vsm:VisualState>
+                </vsm:VisualStateGroup>
+            </vsm:VisualStateManager.VisualStateGroups>
+            <ContentPresenter
+                                                  x:Name="buttonContent"
+                                                  Content="{TemplateBinding Content}"
+                                                  ContentTemplate="{TemplateBinding ContentTemplate}"
+                                                  Margin="1,4,1,9"
+                                                  HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}">
+                <TextElement.Foreground>
+                    <SolidColorBrush x:Name="TextColor" Color="#FF333333"/>
+                </TextElement.Foreground>
+            </ContentPresenter>
+        </Grid>
+    </ControlTemplate>
+
+    <!-- End: Header button template -->
     <!--CalendarItem-->
     <Style TargetType="primitives:CalendarItem">
         <Setter Property="Margin" Value="0,3,0,3" />
@@ -102,104 +196,6 @@ Copyright (C) Microsoft Corporation.  All rights reserved.
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-
-                                    <Grid.Resources>
-                                        <!-- Start: Previous button template -->
-                                        <ControlTemplate x:Key="PreviousButtonTemplate" TargetType="Button">                                            
-                                            <Grid Cursor="Hand">
-                                                <vsm:VisualStateManager.VisualStateGroups>
-                                                    <vsm:VisualStateGroup x:Name="CommonStates">
-                                                        <vsm:VisualState x:Name="Normal" />
-                                                        <vsm:VisualState x:Name="MouseOver">
-                                                            <Storyboard>
-                                                                <ColorAnimation Storyboard.TargetName="TextColor" Storyboard.TargetProperty="Color" To="#FF73A9D8" Duration="0" />
-                                                            </Storyboard>
-                                                        </vsm:VisualState>
-                                                        <vsm:VisualState x:Name="Disabled">
-                                                            <Storyboard>
-                                                                <DoubleAnimation Storyboard.TargetName="TextColor" Storyboard.TargetProperty="Opacity" To=".5" Duration="0" />
-                                                            </Storyboard>
-                                                        </vsm:VisualState>
-                                                    </vsm:VisualStateGroup>
-                                                </vsm:VisualStateManager.VisualStateGroups>
-                                                <Rectangle Fill="#11E5EBF1" Stretch="Fill" Opacity="1"/>
-                                                <Grid>
-                                                    <Path Margin="14,-6,0,0" Height="10" Width="6" VerticalAlignment="Center" HorizontalAlignment="Left" Stretch="Fill" Data="M288.75,232.25 L288.75,240.625 L283,236.625 z">
-                                                        <Path.Fill>
-                                                            <SolidColorBrush x:Name="TextColor" Color="#FF333333" />
-                                                        </Path.Fill>
-                                                    </Path>
-                                                </Grid>
-                                            </Grid>
-                                        </ControlTemplate>
-
-                                        <!-- End: Previous button template -->
-
-                                        <!-- Start: Next button template -->
-                                        <ControlTemplate x:Key="NextButtonTemplate" TargetType="Button">
-                                            <Grid Cursor="Hand">
-                                                <vsm:VisualStateManager.VisualStateGroups>
-                                                    <vsm:VisualStateGroup x:Name="CommonStates">
-                                                        <vsm:VisualState x:Name="Normal" />
-                                                        <vsm:VisualState x:Name="MouseOver">
-                                                            <Storyboard>
-                                                                <ColorAnimation Storyboard.TargetName="TextColor" Storyboard.TargetProperty="Color" To="#FF73A9D8" Duration="0" />
-                                                            </Storyboard>
-                                                        </vsm:VisualState>
-                                                        <vsm:VisualState x:Name="Disabled">
-                                                            <Storyboard>
-                                                                <DoubleAnimation Storyboard.TargetName="TextColor" Storyboard.TargetProperty="Opacity" To=".5" Duration="0" />
-                                                            </Storyboard>
-                                                        </vsm:VisualState>
-                                                    </vsm:VisualStateGroup>
-                                                </vsm:VisualStateManager.VisualStateGroups>
-                                                <Rectangle Fill="#11E5EBF1" Stretch="Fill" Opacity="1"/>
-                                                <Grid>
-                                                    <Path Margin="0,-6,14,0" Height="10" Width="6" VerticalAlignment="Center" HorizontalAlignment="Right" Stretch="Fill" Data="M282.875,231.875 L282.875,240.375 L288.625,236 z">
-                                                        <Path.Fill>
-                                                            <SolidColorBrush x:Name="TextColor" Color="#FF333333" />
-                                                        </Path.Fill>
-                                                    </Path>
-                                                </Grid>
-                                            </Grid>
-                                        </ControlTemplate>
-
-                                        <!-- End: Next button template -->
-
-                                        <!-- Start: Header button template -->
-                                        <ControlTemplate x:Key="HeaderButtonTemplate" TargetType="Button">
-                                            <Grid Cursor="Hand">
-                                                <vsm:VisualStateManager.VisualStateGroups>
-                                                    <vsm:VisualStateGroup x:Name="CommonStates">
-                                                        <vsm:VisualState x:Name="Normal" />
-                                                        <vsm:VisualState x:Name="MouseOver">
-                                                            <Storyboard>
-                                                                <ColorAnimation Storyboard.TargetName="TextColor" Storyboard.TargetProperty="Color" To="#FF73A9D8" Duration="0" />
-                                                            </Storyboard>
-                                                        </vsm:VisualState>
-                                                        <vsm:VisualState x:Name="Disabled">
-                                                            <Storyboard>
-                                                                <DoubleAnimation Storyboard.TargetName="buttonContent" Storyboard.TargetProperty="Opacity" To=".5" Duration="0" />
-                                                            </Storyboard>
-                                                        </vsm:VisualState>
-                                                    </vsm:VisualStateGroup>
-                                                </vsm:VisualStateManager.VisualStateGroups>
-                                                <ContentPresenter
-                                                  x:Name="buttonContent"
-                                                  Content="{TemplateBinding Content}"
-                                                  ContentTemplate="{TemplateBinding ContentTemplate}"
-                                                  Margin="1,4,1,9"
-                                                  HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}">
-                                                     <TextElement.Foreground>
-                                                        <SolidColorBrush x:Name="TextColor" Color="#FF333333"/>
-                                                    </TextElement.Foreground>
-                                                </ContentPresenter>
-                                            </Grid>
-                                        </ControlTemplate>
-
-                                        <!-- End: Header button template -->
-                                    </Grid.Resources>
 
                                     <!-- Start: Previous button content -->
                                     <Button x:Name="PART_PreviousButton" 

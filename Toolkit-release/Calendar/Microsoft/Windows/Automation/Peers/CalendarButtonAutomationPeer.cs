@@ -159,7 +159,7 @@ namespace Microsoft.Windows.Automation.Peers
         protected override string GetHelpTextCore()
         {
             DateTime? date = this.Date;
-            return date.HasValue ? DateTimeHelper.ToLongDateString(date) : base.GetHelpTextCore();
+            return date.HasValue ? DateTimeHelper.ToLongDateString(date, DateTimeHelper.GetCulture(this.OwningCalendarButton)) : base.GetHelpTextCore();
         }
 
         /// <summary>
@@ -173,11 +173,11 @@ namespace Microsoft.Windows.Automation.Peers
             {
                 if (this.OwningCalendar.DisplayMode == CalendarMode.Decade)
                 {
-                    return DateTimeHelper.ToYearString(date);
+                    return DateTimeHelper.ToYearString(date, DateTimeHelper.GetCulture(this.OwningCalendarButton));
                 }
                 else
                 {
-                    return DateTimeHelper.ToYearMonthPatternString(date);
+                    return DateTimeHelper.ToYearMonthPatternString(date, DateTimeHelper.GetCulture(this.OwningCalendarButton));
                 }
             }
             else

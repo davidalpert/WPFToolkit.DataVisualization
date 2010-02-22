@@ -32,7 +32,6 @@ namespace Microsoft.Windows.Controls
 
             TextBoxBase textBoxBase = (TextBoxBase)control;
             Type targetType = typeof(TextBoxBase);
-            EventHandler handler = delegate { UpdateState(textBoxBase, true); };
 
             AddValueChanged(TextBoxBase.IsMouseOverProperty, targetType, textBoxBase, UpdateStateHandler);
             AddValueChanged(TextBoxBase.IsEnabledProperty, targetType, textBoxBase, UpdateStateHandler);
@@ -49,7 +48,6 @@ namespace Microsoft.Windows.Controls
 
             TextBoxBase textBoxBase = (TextBoxBase)control;
             Type targetType = typeof(TextBoxBase);
-            EventHandler handler = delegate { UpdateState(textBoxBase, true); };
 
             RemoveValueChanged(TextBoxBase.IsMouseOverProperty, targetType, textBoxBase, UpdateStateHandler);
             RemoveValueChanged(TextBoxBase.IsEnabledProperty, targetType, textBoxBase, UpdateStateHandler);

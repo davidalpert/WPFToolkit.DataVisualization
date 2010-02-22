@@ -448,7 +448,7 @@ namespace Microsoft.Windows.Controls
             return propertyTransferEnabledForObject;
         }
 
-        private static bool IsPropertyTransferEnabled(DependencyObject d, DependencyProperty p)
+        internal static bool IsPropertyTransferEnabled(DependencyObject d, DependencyProperty p)
         {
             var propertyTransferEnabledForObject = _propertyTransferEnabledMap[d] as Dictionary<DependencyProperty, bool>;
 
@@ -469,26 +469,6 @@ namespace Microsoft.Windows.Controls
         ///     is called inside of Coersion.
         /// </summary>
         private static WeakHashtable _propertyTransferEnabledMap = new WeakHashtable();
-
-        #endregion
-
-        #region Input Gestures
-
-        // Taken from KeyGesture.CreateFromResourceStrings
-        internal static KeyGesture CreateFromResourceStrings(string keyGestureToken, string keyDisplayString)
-        {
-            // combine the gesture and the display string, producing a string
-            // that the type converter will recognize
-            if (!String.IsNullOrEmpty(keyDisplayString))
-            {
-                keyGestureToken += DISPLAYSTRING_SEPARATOR + keyDisplayString;
-            }
-
-            return _keyGestureConverter.ConvertFromInvariantString(keyGestureToken) as KeyGesture;
-        }
-
-        private const char DISPLAYSTRING_SEPARATOR = ',';
-        private static TypeConverter _keyGestureConverter = new KeyGestureConverter();
 
         #endregion
 
@@ -726,6 +706,29 @@ namespace Microsoft.Windows.Controls
             value = Math.Min(value, maxValue);
             return value;
         }
+
+        /// <summary>
+        ///     Helper to check if TextCompositionEventArgs.Text has any non
+        ///     escape characters.
+        /// </summary>
+        public static bool HasNonEscapeCharacters(TextCompositionEventArgs textArgs)
+        {
+            if (textArgs != null)
+            {
+                string text = textArgs.Text;
+                for (int i = 0, count = text.Length; i < count; i++)
+                {
+                    if (text[i] != _escapeChar)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private const char _escapeChar = '\u001b';
 
         #endregion
     }

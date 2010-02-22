@@ -154,7 +154,7 @@ namespace Microsoft.Windows.Automation.Peers
             DateTime? date = this.Date;
             if (date.HasValue)
             {
-                string dateString = DateTimeHelper.ToLongDateString(Date);
+                string dateString = DateTimeHelper.ToLongDateString(Date, DateTimeHelper.GetCulture(this.OwningCalendarDayButton));
 
                 if (this.OwningCalendarDayButton.IsBlackedOut)
                 {
@@ -187,7 +187,7 @@ namespace Microsoft.Windows.Automation.Peers
         protected override string GetNameCore()
         {
             DateTime? date = this.Date;
-            return date.HasValue ? DateTimeHelper.ToLongDateString(Date) : base.GetNameCore();
+            return date.HasValue ? DateTimeHelper.ToLongDateString(Date, DateTimeHelper.GetCulture(this.OwningCalendarDayButton)) : base.GetNameCore();
         }
 
         #endregion Protected Methods

@@ -47,6 +47,9 @@ namespace System.Windows.Controls.DataVisualization.VisualStudio.Design
             // duplicated from .Design
 
             builder.AddCallback(
+                typeof(SSWCD.Interpolator),
+                b => b.AddCustomAttributes(new ToolboxBrowsableAttribute(false)));
+            builder.AddCallback(
                 typeof(SSWCDC.AxisLabel),
                 b => b.AddCustomAttributes(new ToolboxBrowsableAttribute(false)));
             builder.AddCallback(

@@ -73,6 +73,8 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Resources\SR.cs" />
+    <Compile Include="Resources\SRID.cs" />
     <Compile Include="VisualStudio\AddDataGridColumnsUserInterface.xaml.cs">
       <DependentUpon>AddDataGridColumnsUserInterface.xaml</DependentUpon>
     </Compile>
@@ -132,6 +134,13 @@
       <Project>{9606A078-7135-4CE7-879E-39FCF527F1A3}</Project>
       <Name>WPFToolkit</Name>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\StringTable.txt">
+      <Type>Resx</Type>
+      <WithCulture>false</WithCulture>
+      <ManifestResourceName>StringTable</ManifestResourceName>
+    </EmbeddedResource>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

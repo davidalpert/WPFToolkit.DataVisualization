@@ -66,6 +66,7 @@ namespace Microsoft.Windows.Controls
 
         public void Dispose()
         {
+            GC.SuppressFinalize(this);
             if (_columns != null)
             {
                 _columns.CollectionChanged -= OnColumnsChanged;
@@ -148,6 +149,7 @@ namespace Microsoft.Windows.Controls
 
             public void Dispose()
             {
+                GC.SuppressFinalize(this);
                 if (_columns != null)
                 {
                     _columns.CollectionChanged -= OnColumnsChanged;
